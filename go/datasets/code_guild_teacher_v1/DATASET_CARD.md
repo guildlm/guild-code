@@ -26,12 +26,15 @@ cd guild-code/go/datasets/teacher
 python teach_build.py     # compiles new go_generator items, rebuilds the JSONL
 ```
 
-## Status — trainable now, growing toward v2 (~300)
-**290 examples — 180 `go_generator` (all compile ✓), 56 `go_reviewer`,
-35 `go_tester`, 19 `go_explainer`.** (261 train / 29 val.) The 146-example v1 is
-already trainable; growing toward ~300 for a stronger v2. Built across 10 teacher
-batches; every `go_generator` example provably compiles with the local Go
-toolchain; zero duplicates.
+## Status — v2 COMPLETE ✅
+**306 examples — 190 `go_generator` (all compile ✓), 59 `go_reviewer`,
+37 `go_tester`, 20 `go_explainer`.** (276 train / 30 val.) Ready to train.
+Built across 19 teacher batches; **every `go_generator` example provably compiles**
+with the local Go toolchain (190/190, zero compile-drops); zero duplicates.
+Covers goroutines/channels/select/context, generics, error handling
+(wrap/Is/As/Join/custom), the stdlib (json/csv/regexp/time/io/crypto/sort/slices/
+maps/bits/big), data structures & algorithms, plus a deep bank of real-bug reviews
+(races, leaks, nil/aliasing, off-by-one, security) and conceptual explainers.
 
 Topics covered: worker pools, fan-in, generic Map/Set/Stack/BinarySearch,
 context timeouts, error wrapping (`%w`/`Is`/`As`), mutex & atomic counters,
