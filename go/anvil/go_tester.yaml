@@ -1,0 +1,27 @@
+# Anvil training recipe — Code Guild · go_tester (QLoRA SFT)
+#
+# Trains the go_tester adapter on the Forge dataset built by
+# go/forge/go_tester.yaml. References resolve against the Anvil configs/ root:
+#   base_model: qwen2.5_7b -> anvil/configs/base_models/qwen2.5_7b.yaml
+#   lora:       default    -> anvil/configs/lora/default.yaml
+#
+# Copy into anvil/configs/guilds/ then run:
+#   anvil-train --config configs/guilds/go_tester.yaml
+name: go_tester
+
+base_model: qwen2.5_7b
+lora: default
+
+dataset:
+  path: "../../forge/data/datasets/go_tester_v1.train.jsonl"
+  eval_path: "../../forge/data/datasets/go_tester_v1.validation.jsonl"
+  system_prompt: "You are an expert Go test engineer. Write thorough, table-driven tests."
+
+output_dir: "./checkpoints/go_tester_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 3
+  group_by_length: true

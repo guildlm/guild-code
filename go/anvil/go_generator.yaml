@@ -1,0 +1,28 @@
+# Anvil training recipe — Code Guild · go_generator (QLoRA SFT)
+#
+# Trains the go_generator adapter on the Forge dataset built by
+# go/forge/go_generator.yaml. References resolve against the Anvil configs/ root:
+#   base_model: qwen2.5_7b -> anvil/configs/base_models/qwen2.5_7b.yaml
+#   lora:       default    -> anvil/configs/lora/default.yaml
+#
+# Copy this file into anvil/configs/guilds/ (or pass an explicit --configs-root)
+# so the named references resolve, then run:
+#   anvil-train --config configs/guilds/go_generator.yaml
+name: go_generator
+
+base_model: qwen2.5_7b
+lora: default
+
+dataset:
+  path: "../../forge/data/datasets/go_generator_v1.train.jsonl"
+  eval_path: "../../forge/data/datasets/go_generator_v1.validation.jsonl"
+  system_prompt: "You are an expert Go programmer. Write idiomatic, secure, production-grade Go."
+
+output_dir: "./checkpoints/go_generator_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 3
+  group_by_length: true

@@ -1,0 +1,39 @@
+# Forge data recipe — Code Guild · go_reviewer
+#
+# Builds the SFT dataset that teaches the go_reviewer specialist to find bugs,
+# race conditions and idiom violations and explain concrete fixes. Matches the
+# Forge pipeline schema (see forge/configs/example.yaml).
+#
+# Run from the forge/ checkout:
+#   forge run --config ../guild-code/go/forge/go_reviewer.yaml
+
+source: github
+
+# Concurrency-heavy, real-world Go is the richest review material.
+query: "language:go stars:>1500 NOT awesome NOT tutorial"
+
+max_results: 40
+
+download:
+  output_dir: data/raw/go_reviewer
+  max_workers: 4
+
+process:
+  include_extensions: [".go"]
+  min_length: 300
+  max_length: 50000
+  near_dup_threshold: 0.85
+  allow_unknown_license: false
+
+generate:
+  offline: true
+  roles:
+    - go_reviewer
+  max_pairs_per_doc: 2
+
+build:
+  name: go_reviewer_v1
+  output_dir: data/datasets
+  val_ratio: 0.05
+  seed: 42
+  formats: ["jsonl"]

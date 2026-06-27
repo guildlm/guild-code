@@ -1,0 +1,45 @@
+# Forge data recipe — Code Guild · go_generator
+#
+# Builds the SFT dataset that teaches the go_generator specialist to write
+# idiomatic, correct Go from a requirement. Matches the Forge pipeline schema
+# (see forge/configs/example.yaml).
+#
+# Run from the forge/ checkout:
+#   forge run --config ../guild-code/go/forge/go_generator.yaml
+#
+# `generate.offline: true` produces deterministic synthetic pairs so the recipe
+# runs end-to-end with no GPU/teacher. For real data, set offline:false and
+# export FORGE_TEACHER_BASE_URL / FORGE_TEACHER_API_KEY / FORGE_TEACHER_MODEL.
+
+# Discovery source (forge SOURCE_REGISTRY: github, arxiv).
+source: github
+
+# High-signal, permissively shaped Go repos; exclude curated/list repos.
+query: "language:go stars:>2000 NOT awesome NOT tutorial NOT example"
+
+# Number of repos to discover. Raise for a production-size corpus.
+max_results: 40
+
+download:
+  output_dir: data/raw/go_generator
+  max_workers: 4
+
+process:
+  include_extensions: [".go"]
+  min_length: 200
+  max_length: 50000
+  near_dup_threshold: 0.85
+  allow_unknown_license: false
+
+generate:
+  offline: true                 # deterministic synthetic pairs; no network
+  roles:                        # registered in forge instruction_gen.ROLE_REGISTRY
+    - go_generator
+  max_pairs_per_doc: 2
+
+build:
+  name: go_generator_v1
+  output_dir: data/datasets
+  val_ratio: 0.05
+  seed: 42
+  formats: ["jsonl"]            # add "parquet" if pyarrow is installed

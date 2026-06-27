@@ -1,0 +1,13 @@
+name: go_generator
+description: >
+  Functional evaluation for the go_generator specialist. Each sample carries the
+  model's Go source as its prediction and a Go test in metadata; the
+  go_functional evaluator vets, builds and runs it in a sandbox. Pass@1 is the
+  headline metric. Requires Docker to actually execute.
+evaluators:
+  - go_functional
+dataset: data/go_generator.jsonl
+config:
+  go_functional:
+    timeout: 30.0
+    run_vet: true

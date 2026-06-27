@@ -1,0 +1,39 @@
+# Forge data recipe — Code Guild · go_explainer
+#
+# Builds the SFT dataset that teaches the go_explainer specialist to explain Go
+# code and concepts clearly for an engineering audience. Matches the Forge
+# pipeline schema (see forge/configs/example.yaml).
+#
+# Run from the forge/ checkout:
+#   forge run --config ../guild-code/go/forge/go_explainer.yaml
+
+source: github
+
+# Prefer well-documented, idiomatic libraries that reward careful explanation.
+query: "language:go stars:>2000 NOT awesome NOT tutorial"
+
+max_results: 40
+
+download:
+  output_dir: data/raw/go_explainer
+  max_workers: 4
+
+process:
+  include_extensions: [".go"]
+  min_length: 200
+  max_length: 50000
+  near_dup_threshold: 0.85
+  allow_unknown_license: false
+
+generate:
+  offline: true
+  roles:
+    - go_explainer
+  max_pairs_per_doc: 2
+
+build:
+  name: go_explainer_v1
+  output_dir: data/datasets
+  val_ratio: 0.05
+  seed: 42
+  formats: ["jsonl"]

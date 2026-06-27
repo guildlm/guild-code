@@ -1,0 +1,17 @@
+name: go_reviewer
+description: >
+  Quality evaluation for the go_reviewer specialist. Review output is prose, not
+  executable code, so it is graded with a rubric-based LLM judge (correctness of
+  the diagnosis, specificity, actionability) and screened by the safety
+  evaluator. Set CRUCIBLE_JUDGE_BASE_URL / _API_KEY / _MODEL to use a real judge,
+  or run the suite offline for deterministic heuristic scores.
+evaluators:
+  - llm_judge
+  - safety
+dataset: data/go_reviewer.jsonl
+config:
+  llm_judge:
+    offline: true
+    threshold: 0.6
+  safety:
+    use_defaults: true

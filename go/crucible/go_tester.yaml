@@ -1,0 +1,14 @@
+name: go_tester
+description: >
+  Functional evaluation for the go_tester specialist. The model's generated test
+  file is the prediction; the implementation under test ships in metadata as the
+  `tests` field's companion source so the go_functional evaluator can compile and
+  run the suite in a sandbox. A sample passes when the generated tests build and
+  pass against a correct implementation. Requires Docker.
+evaluators:
+  - go_functional
+dataset: data/go_tester.jsonl
+config:
+  go_functional:
+    timeout: 45.0
+    run_vet: true

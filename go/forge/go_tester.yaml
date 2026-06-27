@@ -1,0 +1,47 @@
+# Forge data recipe — Code Guild · go_tester
+#
+# Builds the SFT dataset that teaches the go_tester specialist to write
+# thorough, table-driven Go tests. Matches the Forge pipeline schema
+# (see forge/configs/example.yaml).
+#
+# ┌─ HEADS UP ─────────────────────────────────────────────────────────────┐
+# │ Forge ships three Go teacher roles today: go_generator, go_reviewer and │
+# │ go_explainer (forge/src/core/instruction_gen.py: ROLE_REGISTRY).        │
+# │ `go_tester` is NOT registered yet. Before running this recipe, add a    │
+# │ Role("go_tester", <system prompt>, <task>) and register_role(...) in     │
+# │ that module. See DATASETS.md › "Adding the go_tester teacher role".     │
+# └────────────────────────────────────────────────────────────────────────┘
+#
+# Run from the forge/ checkout (after registering the role):
+#   forge run --config ../guild-code/go/forge/go_tester.yaml
+
+source: github
+
+# Repos with strong existing test suites teach good testing patterns.
+query: "language:go stars:>1500 NOT awesome NOT tutorial"
+
+max_results: 40
+
+download:
+  output_dir: data/raw/go_tester
+  max_workers: 4
+
+process:
+  include_extensions: [".go"]
+  min_length: 200
+  max_length: 50000
+  near_dup_threshold: 0.85
+  allow_unknown_license: false
+
+generate:
+  offline: true
+  roles:
+    - go_tester                 # requires registering the role in forge first
+  max_pairs_per_doc: 2
+
+build:
+  name: go_tester_v1
+  output_dir: data/datasets
+  val_ratio: 0.05
+  seed: 42
+  formats: ["jsonl"]

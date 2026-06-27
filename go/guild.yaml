@@ -1,0 +1,83 @@
+# Code Guild — Go specialists manifest.
+#
+# This is the source-of-truth description of the guild's Go specialists. It is
+# aligned with the brain registry (brain/configs/guilds.yaml): every specialist
+# id, base model and system-prompt intent here matches its entry there. To put a
+# specialist into service, register the same id + adapter in the brain registry.
+#
+# Pipeline per specialist:
+#   forge recipe  -> go/forge/<id>.yaml      (build the SFT dataset)
+#   anvil recipe  -> go/anvil/<id>.yaml      (train the LoRA adapter)
+#   crucible suite-> go/crucible/<id>.yaml   (evaluate the adapter)
+#   prompt        -> go/prompts/<short>.txt  (system prompt)
+
+guild:
+  id: code
+  name: Code Guild
+  domain: code
+  language: go
+  status: live
+  description: >-
+    Small Go specialists — generation, review, testing and explanation — routed
+    by the GuildLM brain. One master per task, not one model for everything.
+  # Keywords the brain can use to route to this guild.
+  routing_keywords: [go, golang, goroutine, channel, code, program, function, bug, test, review]
+
+# Shared defaults; a specialist may override any field.
+defaults:
+  base_model: qwen2.5:7b-instruct        # inference tag (Ollama / vLLM)
+  base_model_recipe: qwen2.5_7b          # anvil base_models/ reference for training
+  lora: default                          # anvil lora/ reference
+
+specialists:
+  - id: go_generator
+    brain_id: guild-code/go_generator
+    tasks: [generation, bug_fix]
+    lora_recipe: default
+    lora_adapter: guildlm/go-generator-lora
+    prompt: go/prompts/generator.txt
+    forge: go/forge/go_generator.yaml
+    anvil: go/anvil/go_generator.yaml
+    crucible: go/crucible/go_generator.yaml
+    brief: Writes idiomatic, secure, production-grade Go from a requirement.
+
+  - id: go_reviewer
+    brain_id: guild-code/go_reviewer
+    tasks: [review, bug_fix]
+    lora_recipe: high_rank                # deep context understanding
+    lora_adapter: guildlm/go-reviewer-lora
+    prompt: go/prompts/reviewer.txt
+    forge: go/forge/go_reviewer.yaml
+    anvil: go/anvil/go_reviewer.yaml
+    crucible: go/crucible/go_reviewer.yaml
+    brief: Finds races, leaks, nil risks, error-handling gaps and security flaws.
+
+  - id: go_tester
+    brain_id: guild-code/go_tester
+    tasks: [testing]
+    lora_recipe: default
+    lora_adapter: guildlm/go-tester-lora
+    prompt: go/prompts/tester.txt
+    forge: go/forge/go_tester.yaml
+    anvil: go/anvil/go_tester.yaml
+    crucible: go/crucible/go_tester.yaml
+    brief: Writes thorough, table-driven tests with the standard testing package.
+
+  - id: go_explainer
+    brain_id: guild-code/go_explainer
+    tasks: [explanation]
+    lora_recipe: default
+    lora_adapter: guildlm/go-explainer-lora
+    prompt: go/prompts/explainer.txt
+    forge: go/forge/go_explainer.yaml
+    anvil: go/anvil/go_explainer.yaml
+    crucible: go/crucible/go_explainer.yaml
+    brief: Explains Go code and concepts clearly and accurately for engineers.
+
+# Multi-step orchestration this guild supports, mirrored by the brain pipeline
+# "code:bug_fix" (brain/configs/guilds.yaml › pipelines).
+pipelines:
+  bug_fix:
+    - { specialist: go_reviewer, action: analyze }
+    - { specialist: go_generator, action: fix }
+    - { specialist: go_reviewer, action: verify }

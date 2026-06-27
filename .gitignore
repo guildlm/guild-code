@@ -1,0 +1,22 @@
+# Build artifacts from the core tools, if a contributor runs them in-tree.
+# Generated datasets (forge), checkpoints/adapters (anvil), eval reports (crucible).
+/data/
+data/raw/
+datasets/
+checkpoints/
+reports/
+*.safetensors
+*.gguf
+
+# Python / tooling caches (if helper scripts are run here)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store

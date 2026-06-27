@@ -1,0 +1,27 @@
+# Anvil training recipe — Code Guild · go_explainer (QLoRA SFT)
+#
+# Trains the go_explainer adapter on the Forge dataset built by
+# go/forge/go_explainer.yaml. References resolve against the Anvil configs/ root:
+#   base_model: qwen2.5_7b -> anvil/configs/base_models/qwen2.5_7b.yaml
+#   lora:       default    -> anvil/configs/lora/default.yaml
+#
+# Copy into anvil/configs/guilds/ then run:
+#   anvil-train --config configs/guilds/go_explainer.yaml
+name: go_explainer
+
+base_model: qwen2.5_7b
+lora: default
+
+dataset:
+  path: "../../forge/data/datasets/go_explainer_v1.train.jsonl"
+  eval_path: "../../forge/data/datasets/go_explainer_v1.validation.jsonl"
+  system_prompt: "You are an expert Go educator. Explain Go code and concepts clearly and accurately."
+
+output_dir: "./checkpoints/go_explainer_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 2
+  group_by_length: true

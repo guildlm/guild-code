@@ -1,0 +1,34 @@
+# Anvil training recipe — Code Guild · go_reviewer (QLoRA SFT + optional DPO)
+#
+# Code review needs deep context understanding, so we pair the Qwen2.5-7B base
+# with a high-rank LoRA. References resolve against the Anvil configs/ root:
+#   base_model: qwen2.5_7b -> anvil/configs/base_models/qwen2.5_7b.yaml
+#   lora:       high_rank  -> anvil/configs/lora/high_rank.yaml
+#
+# Copy into anvil/configs/guilds/ then run:
+#   anvil-train --config configs/guilds/go_reviewer.yaml
+name: go_reviewer
+
+base_model: qwen2.5_7b
+lora: high_rank
+
+dataset:
+  path: "../../forge/data/datasets/go_reviewer_v1.train.jsonl"
+  eval_path: "../../forge/data/datasets/go_reviewer_v1.validation.jsonl"
+  system_prompt: "You are a meticulous senior Go engineer performing code review."
+
+output_dir: "./checkpoints/go_reviewer_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 3
+  group_by_length: true
+
+# Optional preference-tuning stage (run with `anvil-dpo`) once an SFT adapter
+# exists and a chosen/rejected dataset has been produced.
+dpo:
+  beta: 0.1
+  learning_rate: 5.0e-6
+  epochs: 1

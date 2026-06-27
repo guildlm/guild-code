@@ -1,0 +1,17 @@
+name: go_explainer
+description: >
+  Quality evaluation for the go_explainer specialist. Explanations are graded
+  with a rubric-based LLM judge (correctness, clarity, completeness) against a
+  reference explanation, and screened by the safety evaluator to catch fabricated
+  behaviour. Set CRUCIBLE_JUDGE_BASE_URL / _API_KEY / _MODEL for a real judge, or
+  run offline for deterministic heuristic scores.
+evaluators:
+  - llm_judge
+  - safety
+dataset: data/go_explainer.jsonl
+config:
+  llm_judge:
+    offline: true
+    threshold: 0.6
+  safety:
+    use_defaults: true
