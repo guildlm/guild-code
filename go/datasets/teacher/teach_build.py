@@ -1,35 +1,55 @@
-"""Claude-as-teacher: author high-quality Go SFT pairs, compile-verify the code,
-accumulate into a growing master dataset. $0, no API key, no rate limit.
+"""Claude-as-teacher: assemble teacher-authored Go SFT pairs, compile-verify the
+code examples, accumulate into a growing master dataset. $0, no API key, no limit.
 
-go_generator examples are compiled with the real Go toolchain (drop if they fail).
-reviewer/tester/explainer are authored by the teacher and kept as-is.
-Runs are additive + deduped by instruction, so repeated batches accumulate.
+Reads every ``teach_examples*.py`` in this directory (each defines ``EXAMPLES``),
+compiles each ``go_generator`` response with the real Go toolchain (drops any that
+fail), dedupes by instruction, and rebuilds the dataset. Additive across batches.
+
+Usage (from this directory, with a forge checkout available):
+    python teach_build.py
 """
-import hashlib, json, os, sys
-sys.path.insert(0, "/Users/fatihturker/Desktop/Personal/Dev/guildlm/forge")
-from src.core.verifier import GoVerifier
-from src.core.dataset_builder import DatasetBuilder
+import glob
+import hashlib
+import importlib.util
+import os
+import sys
 
-OUT = "/Users/fatihturker/Desktop/Personal/Dev/guildlm/guild-code/go/datasets/code_guild_teacher_v1"
-MASTER = f"{OUT}/code_guild_teacher_v1.train.jsonl"
+# Locate a forge checkout so we can reuse its verifier + dataset builder.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+for cand in (
+    os.environ.get("FORGE_DIR", ""),
+    os.path.join(_HERE, "../../../../forge"),
+    "/Users/fatihturker/Desktop/Personal/Dev/guildlm/forge",
+):
+    if cand and os.path.isdir(os.path.join(cand, "src", "core")):
+        sys.path.insert(0, os.path.abspath(cand))
+        break
 
-# Imported from the batch file in the same dir.
-from teach_examples import EXAMPLES  # noqa: E402
+from src.core.dataset_builder import DatasetBuilder  # noqa: E402
+from src.core.verifier import GoVerifier  # noqa: E402
+
+OUT = os.path.abspath(os.path.join(_HERE, "..", "code_guild_teacher_v1"))
+NAME = "code_guild_teacher_v1"
+
+
+def load_batches():
+    examples = []
+    for path in sorted(glob.glob(os.path.join(_HERE, "teach_examples*.py"))):
+        spec = importlib.util.spec_from_file_location(os.path.basename(path)[:-3], path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        batch = getattr(mod, "EXAMPLES", [])
+        examples.extend(batch)
+        print(f"  loaded {len(batch):3d} from {os.path.basename(path)}")
+    return examples
 
 
 def main():
     ver = GoVerifier(strict=True)
-    existing = []
-    seen = set()
-    for f in (f"{OUT}/code_guild_teacher_v1.train.jsonl", f"{OUT}/code_guild_teacher_v1.validation.jsonl"):
-        if os.path.exists(f):
-            for line in open(f):
-                r = json.loads(line)
-                existing.append(r)
-                seen.add(hashlib.sha256(r["instruction"].encode()).hexdigest())
+    examples = load_batches()
 
-    kept_new, dropped, dups = [], 0, 0
-    for ex in EXAMPLES:
+    kept, seen, dropped, dups = [], set(), 0, 0
+    for ex in examples:
         h = hashlib.sha256(ex["instruction"].encode()).hexdigest()
         if h in seen:
             dups += 1
@@ -40,22 +60,26 @@ def main():
                 dropped += 1
                 print(f"  DROP (compile {vr.status}): {ex['instruction'][:60]}...")
                 if vr.diagnostics:
-                    print("     ", vr.diagnostics.strip().replace("\n", " ")[:160])
+                    print("     ", vr.diagnostics.strip().replace(chr(10), " ")[:160])
                 continue
         seen.add(h)
-        kept_new.append({"instruction": ex["instruction"], "response": ex["response"],
-                         "context": ex.get("context", ""), "role": ex["role"]})
+        kept.append({
+            "instruction": ex["instruction"],
+            "response": ex["response"],
+            "context": ex.get("context", ""),
+            "role": ex["role"],
+        })
 
-    allp = existing + kept_new
-    print(f"\nnew authored: {len(EXAMPLES)} | kept: {len(kept_new)} | compile-dropped: {dropped} | dups: {dups}")
-    print(f"master total now: {len(allp)}")
+    print(f"\nauthored: {len(examples)} | kept: {len(kept)} | compile-dropped: {dropped} | dups: {dups}")
 
     b = DatasetBuilder(output_dir=OUT, system_prompt="You are a GuildLM Go specialist.")
-    man = b.build(allp, name="code_guild_teacher_v1", val_ratio=0.1, seed=42, formats=["jsonl"])
+    man = b.build(kept, name=NAME, val_ratio=0.1, seed=42, formats=["jsonl"])
+
     from collections import Counter
-    roles = Counter(r.get("role", "?") for r in allp)
+    roles = Counter(r["role"] for r in kept)
     print("by role:", dict(roles))
-    print("manifest:", man.total_records, "records ->", OUT)
+    print(f"dataset: {man.total_records} records "
+          f"(train={man.splits.get('train')}, val={man.splits.get('validation')}) -> {OUT}")
 
 
 if __name__ == "__main__":

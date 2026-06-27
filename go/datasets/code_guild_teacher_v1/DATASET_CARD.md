@@ -27,13 +27,20 @@ python teach_build.py     # compiles new go_generator items, rebuilds the JSONL
 ```
 
 ## Status
-- **Batch 1:** 13 examples — 8 `go_generator` (all compiled ✓), 3 `go_reviewer`,
-  1 `go_tester`, 1 `go_explainer`. Topics: worker pools, generics, context
-  timeouts, error wrapping, mutex counters, JSON, HTTP middleware, fan-in;
-  reviews of loop-var capture / swallowed errors / data races; table-driven
-  tests; channel `select` explanation.
-- **Target:** grow to a few hundred diverse, verified examples — enough to QLoRA
-  a genuinely useful Go specialist (quality > quantity for LoRA).
+**30 examples so far — 18 `go_generator` (all compile ✓), 6 `go_reviewer`,
+3 `go_tester`, 3 `go_explainer`.** (27 train / 3 val.) Growing each batch.
+
+Topics covered: worker pools, fan-in, generic Map/Set/Stack/BinarySearch,
+context timeouts, error wrapping (`%w`/`Is`/`As`), mutex & atomic counters,
+`sync.Once`, JSON, HTTP middleware, `container/heap` priority queue, BFS,
+memoization, retry/backoff, word-frequency. Reviews: loop-var capture, swallowed
+scanner errors, data races, `defer`-in-loop fd leaks, typed-nil interface trap,
+unclosed `resp.Body`. Tests: table-driven + `httptest`. Explanations: channel
+`select`, `defer`/`panic`/`recover`, slice backing-array aliasing.
+
+- **Target:** grow to ~150 diverse, verified examples — enough to QLoRA a
+  genuinely useful Go specialist (quality > quantity for LoRA), then train on
+  free Kaggle and measure with `crucible`.
 
 ## Schema
 `instruction`, `response`, `context`, `role`, `messages` (system→user→assistant).
