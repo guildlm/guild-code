@@ -66,6 +66,10 @@ guild-code/
     │   ├── go_reviewer.yaml
     │   ├── go_tester.yaml
     │   └── go_explainer.yaml
+    ├── datasets/             # committed sample SFT dataset (real forge output)
+    │   ├── build_sample.py   # regenerates it by running forge offline
+    │   ├── sources/          # curated Apache-2.0 Go snippets fed to forge
+    │   └── code_guild_sample_v1/  # JSONL + manifest + DATASET_CARD.md
     ├── crucible/             # eval suites  (crucible schema)
     │   ├── go_generator.yaml
     │   ├── go_reviewer.yaml
@@ -103,6 +107,19 @@ forge run --config ../guild-code/go/forge/go_generator.yaml
 Recipes default to `generate.offline: true` so they run end-to-end with no GPU
 or teacher endpoint. For real data set `offline: false` and export
 `FORGE_TEACHER_BASE_URL` / `FORGE_TEACHER_API_KEY` / `FORGE_TEACHER_MODEL`.
+
+A small **committed sample** of this exact output lives under
+[`go/datasets/`](./go/datasets/) (20 records across all four roles), built by
+running forge offline over curated Go snippets. It is a deterministic fixture
+for smoke-testing the pipeline — its responses are honest *synthetic
+placeholders*, not training-grade labels. Regenerate it with:
+
+```bash
+cd go/datasets && /path/to/forge/.venv/bin/python build_sample.py
+```
+
+See [DATASETS.md](./DATASETS.md#committed-sample-dataset-godatasets) and the
+dataset's `DATASET_CARD.md` for provenance and limitations.
 
 ### 2. Train — `anvil`
 

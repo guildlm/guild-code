@@ -8,6 +8,12 @@ reports/
 *.safetensors
 *.gguf
 
+# ...but DO keep the committed sample SFT dataset fixture (small, deterministic,
+# real forge offline output). It lives under go/datasets/ and is tracked on
+# purpose; see go/datasets/code_guild_sample_v1/DATASET_CARD.md.
+!go/datasets/
+!go/datasets/**
+
 # Python / tooling caches (if helper scripts are run here)
 __pycache__/
 *.py[cod]

@@ -95,6 +95,43 @@ change the guild requires; everything else uses forge as-is.
 
 ---
 
+## Committed sample dataset (`go/datasets/`)
+
+A small, **deterministic** sample dataset is committed under
+[`go/datasets/`](./go/datasets/) as a runnable fixture, built by actually
+running forge's pipeline offline over a handful of curated Go snippets:
+
+```
+go/datasets/
+├── build_sample.py                 # drives forge: process -> generate -> build
+├── sources/                        # 5 curated, Apache-2.0, idiomatic .go snippets
+└── code_guild_sample_v1/
+    ├── code_guild_sample_v1.train.jsonl        # 18 records
+    ├── code_guild_sample_v1.validation.jsonl   #  2 records
+    ├── code_guild_sample_v1.manifest.json
+    └── DATASET_CARD.md
+```
+
+It uses all four Go roles (`go_explainer`, `go_reviewer`, `go_generator`,
+`go_tester`) — `5 snippets × 4 roles = 20` records, split 18/2 at `seed=42`.
+
+> ⚠️ **Honest provenance:** this is built in forge's **offline** mode, so every
+> `response` is a deterministic *synthetic placeholder*
+> (`[offline:<role>:<seed>] ...`), **not** a teacher- or human-grade label. It
+> exists to **smoke-test** the data → train pipeline end-to-end with no network,
+> GPU, or teacher endpoint — it is **not** a benchmark-quality corpus. See
+> [`go/datasets/code_guild_sample_v1/DATASET_CARD.md`](./go/datasets/code_guild_sample_v1/DATASET_CARD.md)
+> for full provenance, checksums, and limitations.
+
+Regenerate it (deterministic) with forge's virtualenv:
+
+```bash
+cd go/datasets
+/path/to/forge/.venv/bin/python build_sample.py   # or: python build_sample.py in an activated forge venv
+```
+
+---
+
 ## Evaluation datasets
 
 Crucible suites read a different, evaluation-time schema (see

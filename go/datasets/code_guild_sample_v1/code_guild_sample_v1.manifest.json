@@ -1,0 +1,60 @@
+{
+  "name": "code_guild_sample_v1",
+  "created_at": "2026-06-27T13:32:23.594685+00:00",
+  "total_records": 20,
+  "splits": {
+    "train": 18,
+    "validation": 2
+  },
+  "files": [
+    {
+      "path": "code_guild_sample_v1.train.jsonl",
+      "split": "train",
+      "format": "jsonl",
+      "records": 18,
+      "bytes": 72840,
+      "sha256": "9e5cdc762cff7c7eae94222ebbb132f8dbb2949ff36ddb51d8dcb9d41bee4e09"
+    },
+    {
+      "path": "code_guild_sample_v1.validation.jsonl",
+      "split": "validation",
+      "format": "jsonl",
+      "records": 2,
+      "bytes": 7196,
+      "sha256": "f30a36b1959224c404c6ccd6a61c38a44686b5340e32877d2b115a6e4b2724ad"
+    }
+  ],
+  "schema_fields": [
+    "instruction",
+    "response",
+    "context",
+    "messages"
+  ],
+  "stats": {
+    "cleaning": {
+      "total_in": 5,
+      "total_out": 5,
+      "exact_duplicates": 0,
+      "near_duplicates": 0,
+      "license_filtered": 0,
+      "length_filtered": 0,
+      "encoding_filtered": 0,
+      "pii_redactions": 0
+    },
+    "roles": [
+      "go_explainer",
+      "go_reviewer",
+      "go_generator",
+      "go_tester"
+    ],
+    "source_files": [
+      "error_wrap.go",
+      "http_handler.go",
+      "lru_cache.go",
+      "stack_test.go",
+      "worker_pool.go"
+    ],
+    "generation": "forge offline (deterministic synthetic placeholders)",
+    "seed": 42
+  }
+}
