@@ -108,6 +108,21 @@ Recipes default to `generate.offline: true` so they run end-to-end with no GPU
 or teacher endpoint. For real data set `offline: false` and export
 `FORGE_TEACHER_BASE_URL` / `FORGE_TEACHER_API_KEY` / `FORGE_TEACHER_MODEL`.
 
+> **Build a real, training-grade Go dataset for ≤$5.** See the runbook
+> [DATASETS.md › Build a real Go dataset (≤$5)](./DATASETS.md#build-a-real-go-dataset-5),
+> which documents two ready-to-run recipes here under `go/forge/`:
+> - **Route A ($0):** [`go/forge/go_curated.yaml`](./go/forge/go_curated.yaml) —
+>   curate Magicoder-OSS-Instruct-75K / OpenCodeInstruct (CC-BY-4.0) Go rows, no
+>   teacher, no GPU.
+> - **Route B (~$2–3):** [`go/forge/go_reviewer_real.yaml`](./go/forge/go_reviewer_real.yaml) —
+>   grounded pairs from real GitHub Go via a cheap DeepSeek-V3 teacher,
+>   hard-capped at `max_spend_usd: 4.0`.
+>
+> A hybrid (curate + a few thousand grounded, dedup, build) gives the best
+> quality per dollar. Then train with [anvil](https://github.com/guildlm/anvil)
+> on `Qwen/Qwen2.5-Coder-7B-Instruct` — see anvil's `TRAINING.md`
+> "Real-quality run".
+
 A small **committed sample** of this exact output lives under
 [`go/datasets/`](./go/datasets/) (20 records across all four roles), built by
 running forge offline over curated Go snippets. It is a deterministic fixture

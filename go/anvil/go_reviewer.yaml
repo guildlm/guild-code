@@ -1,15 +1,24 @@
 # Anvil training recipe — Code Guild · go_reviewer (QLoRA SFT + optional DPO)
 #
-# Code review needs deep context understanding, so we pair the Qwen2.5-7B base
+# Code review needs deep context understanding, so we pair a Qwen2.5-7B base
 # with a high-rank LoRA. References resolve against the Anvil configs/ root:
 #   base_model: qwen2.5_7b -> anvil/configs/base_models/qwen2.5_7b.yaml
 #   lora:       high_rank  -> anvil/configs/lora/high_rank.yaml
 #
 # Copy into anvil/configs/guilds/ then run:
 #   anvil-train --config configs/guilds/go_reviewer.yaml
+#
+# REAL-QUALITY run: train the code-specialized base on a REAL forge dataset.
+# Either swap the `base_model:` reference below to `qwen2.5_coder_7b` (ships in
+# anvil/configs/base_models/qwen2.5_coder_7b.yaml), or leave it and override at
+# the CLI without editing this file:
+#   anvil-train --config configs/guilds/go_reviewer.yaml \
+#       --model-id Qwen/Qwen2.5-Coder-7B-Instruct \
+#       --dataset-path ../../forge/data/datasets/go_code_guild_real_v1.train.jsonl
+# See guild-code/DATASETS.md ("Build a real Go dataset (<=$5)") and anvil/TRAINING.md.
 name: go_reviewer
 
-base_model: qwen2.5_7b
+base_model: qwen2.5_7b      # real-quality: -> qwen2.5_coder_7b (or --model-id override)
 lora: high_rank
 
 dataset:

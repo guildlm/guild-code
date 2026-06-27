@@ -7,6 +7,97 @@ documenting each release.
 
 ---
 
+## Build a real Go dataset (≤$5)
+
+The committed sample under [`go/datasets/`](./go/datasets/) is an
+**offline-synthetic smoke fixture** (placeholder responses) — great for testing
+the data → train pipeline, **not** for training a real model. For a real,
+training-grade Go corpus, forge now ships two routes. Both end in `forge build`,
+which writes the exact JSONL schema documented below. Total real-quality cost
+stays **≤$5** (data $0–3 + a cheap GPU run $0–1.5; see
+[anvil/TRAINING.md](https://github.com/guildlm/anvil/blob/main/TRAINING.md)).
+
+> forge's HuggingFace import route needs the `[hf]` extra:
+> `pip install -e '.[hf]'` (pulls the `datasets` library) from a forge checkout.
+
+### Route A — curate an existing dataset (**$0**, no GPU, no teacher)
+
+Stream a permissively-licensed instruction dataset, keep only Go rows, clean
+(dedup / PII / length), and build. Copy-pasteable, from a `forge/` checkout:
+
+```bash
+# Magicoder OSS-Instruct (Go subset) — the recipe shipped in this repo
+forge run --config ../guild-code/go/forge/go_curated.yaml
+# -> forge/data/datasets/go_curated_v1.train.jsonl (+ .validation.jsonl, manifest)
+
+# Equivalent piecewise, and add a second permissive source (NVIDIA OpenCodeInstruct):
+forge import --dataset ise-uiuc/Magicoder-OSS-Instruct-75K --language go \
+             --max 3000 --output data/magicoder_go.json
+forge import --dataset nvidia/OpenCodeInstruct --language go \
+             --max 3000 --output data/opencode_go.json
+# concatenate the two JSON pair-lists, then:
+forge build --input data/go_curated_merged.json --name go_curated_v1 --val-ratio 0.1
+```
+
+- **Cost:** **$0** — pure streaming + CPU cleaning, no teacher calls, no GPU.
+- **License:** `ise-uiuc/Magicoder-OSS-Instruct-75K` and `nvidia/OpenCodeInstruct`
+  are both **CC-BY-4.0**. You must keep **attribution** to those sources in your
+  dataset card / model card when you redistribute or train on them.
+
+### Route B — generate grounded pairs from real Go (**~$2–3**, budget-capped)
+
+Discover top idiomatic Go repos, clean the source, and prompt a **cheap**
+OpenAI-compatible teacher (DeepSeek-V3) for grounded `(instruction, response)`
+pairs across all four roles. The `max_spend_usd` cap guarantees you never
+overspend. From a `forge/` checkout:
+
+```bash
+export FORGE_TEACHER_BASE_URL=https://api.deepseek.com
+export FORGE_TEACHER_MODEL=deepseek-chat
+export FORGE_TEACHER_API_KEY=sk-...        # your DeepSeek key
+export FORGE_TEACHER_PRICE_IN=0.14         # DeepSeek-V3 $/1M input tokens
+export FORGE_TEACHER_PRICE_OUT=0.28        # DeepSeek-V3 $/1M output tokens
+export GITHUB_TOKEN=ghp_...                # lifts GitHub's 60 req/hr limit
+
+forge run --config ../guild-code/go/forge/go_reviewer_real.yaml
+# -> forge/data/datasets/go_code_guild_real_v1.train.jsonl (+ .validation, manifest)
+```
+
+**Honest token math** (DeepSeek-V3 at $0.14 in / $0.28 out per 1M tokens):
+
+- A grounded pair averages roughly ~1.0k input tokens (prompt + Go context) and
+  ~0.6k output tokens (the review/test/explanation).
+- Per pair ≈ `1000×$0.14/1e6 + 600×$0.28/1e6` ≈ `$0.00014 + $0.000168` ≈ **~$0.0003**.
+- **~5,000 pairs ≈ ~5000 × $0.0003 ≈ ~$1.5–2.2** depending on snippet length.
+- The recipe hard-caps at `max_pairs: 4000` **and** `max_spend_usd: 4.0`;
+  generation stops cleanly at whichever cap is hit first and still builds
+  whatever it produced — **you cannot overspend the cap.**
+
+### Recommended — hybrid (curate + a few thousand grounded), then build
+
+Best quality-per-dollar: take Route A's $0 curated Go pairs, add a few thousand
+Route B grounded pairs, dedup the union, and build one dataset.
+
+```bash
+# 1) Route A: curated pairs ($0)
+forge import --dataset ise-uiuc/Magicoder-OSS-Instruct-75K --language go \
+             --max 3000 --output data/curated.json
+
+# 2) Route B: grounded pairs (budget-capped); stop the generate stage at the pairs file
+forge generate --input data/docs.json \
+               --role go_reviewer,go_generator,go_tester,go_explainer \
+               --max-pairs 3000 --max-spend-usd 3.0 --output data/grounded.json
+
+# 3) Merge the two pair-lists into data/hybrid.json (concatenate JSON arrays),
+#    then build once — forge's processor dedups (near_dup_threshold) on build:
+forge build --input data/hybrid.json --name go_code_guild_hybrid_v1 --val-ratio 0.1
+```
+
+Keep the offline-synthetic sample around as the **smoke-test fixture** (below) —
+it stays useful for CI and for verifying the pipeline with no network/GPU.
+
+---
+
 ## SFT record schema
 
 Forge's `DatasetBuilder` validates and expands every `(instruction, response)`
