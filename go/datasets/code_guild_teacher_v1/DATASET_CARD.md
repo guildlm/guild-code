@@ -27,8 +27,8 @@ python teach_build.py     # compiles new go_generator items, rebuilds the JSONL
 ```
 
 ## Status — trainable now, growing toward v2 (~300)
-**226 examples — 140 `go_generator` (all compile ✓), 44 `go_reviewer`,
-27 `go_tester`, 15 `go_explainer`.** (204 train / 22 val.) The 146-example v1 is
+**242 examples — 150 `go_generator` (all compile ✓), 47 `go_reviewer`,
+29 `go_tester`, 16 `go_explainer`.** (218 train / 24 val.) The 146-example v1 is
 already trainable; growing toward ~300 for a stronger v2. Built across 10 teacher
 batches; every `go_generator` example provably compiles with the local Go
 toolchain; zero duplicates.
