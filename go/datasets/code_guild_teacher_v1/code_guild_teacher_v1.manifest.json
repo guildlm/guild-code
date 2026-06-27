@@ -1,27 +1,27 @@
 {
   "name": "code_guild_teacher_v1",
-  "created_at": "2026-06-27T17:55:31.923484+00:00",
-  "total_records": 210,
+  "created_at": "2026-06-27T18:01:27.303680+00:00",
+  "total_records": 226,
   "splits": {
-    "train": 189,
-    "validation": 21
+    "train": 204,
+    "validation": 22
   },
   "files": [
     {
       "path": "code_guild_teacher_v1.train.jsonl",
       "split": "train",
       "format": "jsonl",
-      "records": 189,
-      "bytes": 406061,
-      "sha256": "aa71088ccf1d08105e34f9fcdfedb74245012ad9543856154cecd142cdadb077"
+      "records": 204,
+      "bytes": 442616,
+      "sha256": "dfb30691d93f45148b853749fc675e6d5de0c733660bff96b5924475cc261eac"
     },
     {
       "path": "code_guild_teacher_v1.validation.jsonl",
       "split": "validation",
       "format": "jsonl",
-      "records": 21,
-      "bytes": 44191,
-      "sha256": "43e2b8c1bae64e8d66dcccc1e4e21adab5515f3cc57f6798423279df9df74994"
+      "records": 22,
+      "bytes": 44438,
+      "sha256": "ef61bc17ab0da7da5a16eb0185b69c51613200dbea50f35b5d06fd232bea01a3"
     }
   ],
   "schema_fields": [
