@@ -27,8 +27,8 @@ python teach_build.py     # compiles new go_generator items, rebuilds the JSONL
 ```
 
 ## Status
-**30 examples so far — 18 `go_generator` (all compile ✓), 6 `go_reviewer`,
-3 `go_tester`, 3 `go_explainer`.** (27 train / 3 val.) Growing each batch.
+**48 examples so far — 29 `go_generator` (all compile ✓), 10 `go_reviewer`,
+5 `go_tester`, 4 `go_explainer`.** (44 train / 4 val.) Growing each batch.
 
 Topics covered: worker pools, fan-in, generic Map/Set/Stack/BinarySearch,
 context timeouts, error wrapping (`%w`/`Is`/`As`), mutex & atomic counters,
