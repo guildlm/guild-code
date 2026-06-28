@@ -98,6 +98,48 @@ TASKS = [
         'package sandbox\n\nimport "strings"\n\nfunc CountVowels(s string) int {\n\tn := 0\n\tfor _, c := range strings.ToLower(s) {\n\t\tswitch c {\n\t\tcase \'a\', \'e\', \'i\', \'o\', \'u\':\n\t\t\tn++\n\t\t}\n\t}\n\treturn n\n}\n',
         'package sandbox\n\nimport "testing"\n\nfunc TestCountVowels(t *testing.T) {\n\tif got := CountVowels("Hello World"); got != 3 {\n\t\tt.Errorf("got %d want 3", got)\n\t}\n\tif got := CountVowels("xyz"); got != 0 {\n\t\tt.Errorf("got %d want 0", got)\n\t}\n}\n',
     ),
+    (
+        "group_parity",
+        "Write a Go function GroupParity(xs []int) map[string][]int that groups xs into keys \"even\" and \"odd\" preserving order, in package sandbox.",
+        'package sandbox\n\nfunc GroupParity(xs []int) map[string][]int {\n\tout := map[string][]int{}\n\tfor _, x := range xs {\n\t\tif x%2 == 0 {\n\t\t\tout["even"] = append(out["even"], x)\n\t\t} else {\n\t\t\tout["odd"] = append(out["odd"], x)\n\t\t}\n\t}\n\treturn out\n}\n',
+        'package sandbox\n\nimport (\n\t"reflect"\n\t"testing"\n)\n\nfunc TestGroupParity(t *testing.T) {\n\tg := GroupParity([]int{1, 2, 3, 4})\n\tif !reflect.DeepEqual(g["even"], []int{2, 4}) || !reflect.DeepEqual(g["odd"], []int{1, 3}) {\n\t\tt.Errorf("got %v", g)\n\t}\n}\n',
+    ),
+    (
+        "flatten",
+        "Write a generic Go function Flatten[T any](in [][]T) []T concatenating the sub-slices in order, in package sandbox.",
+        "package sandbox\n\nfunc Flatten[T any](in [][]T) []T {\n\tvar out []T\n\tfor _, s := range in {\n\t\tout = append(out, s...)\n\t}\n\treturn out\n}\n",
+        'package sandbox\n\nimport (\n\t"reflect"\n\t"testing"\n)\n\nfunc TestFlatten(t *testing.T) {\n\tif got := Flatten([][]int{{1, 2}, {3}, {}}); !reflect.DeepEqual(got, []int{1, 2, 3}) {\n\t\tt.Errorf("got %v", got)\n\t}\n}\n',
+    ),
+    (
+        "title_case",
+        "Write a Go function Title(s string) string that upcases the first letter of each whitespace-separated word (rune-aware), in package sandbox.",
+        'package sandbox\n\nimport (\n\t"strings"\n\t"unicode"\n)\n\nfunc Title(s string) string {\n\twords := strings.Fields(s)\n\tfor i, w := range words {\n\t\tr := []rune(w)\n\t\tr[0] = unicode.ToUpper(r[0])\n\t\twords[i] = string(r)\n\t}\n\treturn strings.Join(words, " ")\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestTitle(t *testing.T) {\n\tif got := Title("hello world"); got != "Hello World" {\n\t\tt.Errorf("got %q", got)\n\t}\n}\n',
+    ),
+    (
+        "counts",
+        "Write a generic Go function Counts[T comparable](xs []T) map[T]int returning how many times each element appears, in package sandbox.",
+        "package sandbox\n\nfunc Counts[T comparable](xs []T) map[T]int {\n\tm := make(map[T]int)\n\tfor _, x := range xs {\n\t\tm[x]++\n\t}\n\treturn m\n}\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestCounts(t *testing.T) {\n\tc := Counts([]string{"a", "b", "a"})\n\tif c["a"] != 2 || c["b"] != 1 {\n\t\tt.Errorf("got %v", c)\n\t}\n}\n',
+    ),
+    (
+        "atoi_sum",
+        "Write a Go function SumDigits(s string) (int, error) that sums the decimal digits in s, returning an error wrapping strconv via fmt.Errorf %w on a non-digit, in package sandbox.",
+        'package sandbox\n\nimport (\n\t"fmt"\n\t"strconv"\n)\n\nfunc SumDigits(s string) (int, error) {\n\tsum := 0\n\tfor _, c := range s {\n\t\tn, err := strconv.Atoi(string(c))\n\t\tif err != nil {\n\t\t\treturn 0, fmt.Errorf("SumDigits(%q): %w", s, err)\n\t\t}\n\t\tsum += n\n\t}\n\treturn sum, nil\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestSumDigits(t *testing.T) {\n\tif n, err := SumDigits("123"); err != nil || n != 6 {\n\t\tt.Fatalf("123 -> %d %v", n, err)\n\t}\n\tif _, err := SumDigits("1a"); err == nil {\n\t\tt.Error("1a should error")\n\t}\n}\n',
+    ),
+    (
+        "rune_at",
+        "Write a Go function RuneAt(s string, n int) (rune, bool) returning the n-th rune (0-based) and false if out of range, in package sandbox.",
+        "package sandbox\n\nfunc RuneAt(s string, n int) (rune, bool) {\n\tr := []rune(s)\n\tif n < 0 || n >= len(r) {\n\t\treturn 0, false\n\t}\n\treturn r[n], true\n}\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestRuneAt(t *testing.T) {\n\tif r, ok := RuneAt("héllo", 1); !ok || r != \'é\' {\n\t\tt.Errorf("got %q %v", r, ok)\n\t}\n\tif _, ok := RuneAt("ab", 5); ok {\n\t\tt.Error("out of range should be false")\n\t}\n}\n',
+    ),
+    (
+        "keys_sorted",
+        "Write a Go function SortedKeys(m map[string]int) []string returning the map keys in sorted order, in package sandbox.",
+        'package sandbox\n\nimport "sort"\n\nfunc SortedKeys(m map[string]int) []string {\n\tks := make([]string, 0, len(m))\n\tfor k := range m {\n\t\tks = append(ks, k)\n\t}\n\tsort.Strings(ks)\n\treturn ks\n}\n',
+        'package sandbox\n\nimport (\n\t"reflect"\n\t"testing"\n)\n\nfunc TestSortedKeys(t *testing.T) {\n\tif got := SortedKeys(map[string]int{"b": 1, "a": 2, "c": 3}); !reflect.DeepEqual(got, []string{"a", "b", "c"}) {\n\t\tt.Errorf("got %v", got)\n\t}\n}\n',
+    ),
 ]
 
 
