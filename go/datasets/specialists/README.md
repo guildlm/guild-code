@@ -48,3 +48,14 @@ python bench_compare.py --models guildlm-go-dev,qwen2.5-coder:7b
 
 A task counts only if the model's *own* generated code compiles and passes the
 hidden test — pass@1, no judge.
+
+Two benchmarks (same runner, `--bench`):
+
+| Benchmark | Measures | File |
+|-----------|----------|------|
+| `go_dev_bench.jsonl` | from-scratch spec→code | 12 tasks, hidden tests |
+| `go_edit_bench.jsonl` | **editing** flawed code on request | 8 tasks, hidden tests |
+
+```bash
+python bench_compare.py --models guildlm-go-dev,qwen2.5-coder:7b --bench data/go_edit_bench.jsonl
+```

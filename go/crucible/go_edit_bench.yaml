@@ -1,0 +1,15 @@
+name: go_edit_bench
+description: >
+  Held-out EDIT benchmark: 8 tasks, each a flawed Go file + a change request,
+  scored by a hidden test that passes only if the fix is correct. Measures the
+  capability that matters for real backends — editing existing code, not just
+  from-scratch generation. Built and self-verified by build_go_edit_bench.py.
+  Same schema as go_dev_bench, so bench_compare.py runs it unchanged
+  (--bench data/go_edit_bench.jsonl).
+evaluators:
+  - go_functional
+dataset: data/go_edit_bench.jsonl
+config:
+  go_functional:
+    timeout: 30.0
+    run_vet: true
