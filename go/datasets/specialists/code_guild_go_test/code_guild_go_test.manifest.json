@@ -1,27 +1,27 @@
 {
   "name": "code_guild_go_test",
-  "created_at": "2026-06-28T15:56:54.720536+00:00",
-  "total_records": 57,
+  "created_at": "2026-06-28T18:25:47.854683+00:00",
+  "total_records": 66,
   "splits": {
-    "train": 52,
-    "validation": 5
+    "train": 60,
+    "validation": 6
   },
   "files": [
     {
       "path": "code_guild_go_test.train.jsonl",
       "split": "train",
       "format": "jsonl",
-      "records": 52,
-      "bytes": 135310,
-      "sha256": "e027539aebf590c7d971ee9a0cf4889ac4bf738140543ef7ade8ca1b6ee35b5b"
+      "records": 60,
+      "bytes": 151054,
+      "sha256": "3c18db04f5096f761aa35f6c74dce15d39021c05dea2146ea268bb5aa97261cc"
     },
     {
       "path": "code_guild_go_test.validation.jsonl",
       "split": "validation",
       "format": "jsonl",
-      "records": 5,
-      "bytes": 12627,
-      "sha256": "2aaeaed6513721de753f690d4d42dbd704f9868d5f38defef4ef07f1b9dae929"
+      "records": 6,
+      "bytes": 13798,
+      "sha256": "0a23ee7c9344247f19e4e454ad6f620f00e13e87a5cbe6ce01b73fdbd66ff929"
     }
   ],
   "schema_fields": [
