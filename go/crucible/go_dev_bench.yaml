@@ -1,0 +1,17 @@
+name: go_dev_bench
+description: >
+  Held-out functional benchmark for the go-dev specialist: 12 spec->code tasks,
+  each with a hidden Go test. The go_functional evaluator builds and runs each
+  model prediction against its hidden test in a sandbox; pass@1 is the headline
+  metric. Built and self-verified by build_go_dev_bench.py (every reference is
+  confirmed to pass its test with the real Go toolchain). Run the same dataset
+  through the specialist and a general-LLM baseline and compare pass@1 — this is
+  the objective proof of "a narrow Go specialist beats a general LLM". For a
+  Docker-free local run, use bench_compare.py instead (same tasks, same scoring).
+evaluators:
+  - go_functional
+dataset: data/go_dev_bench.jsonl
+config:
+  go_functional:
+    timeout: 30.0
+    run_vet: true

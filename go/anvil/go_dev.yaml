@@ -1,0 +1,34 @@
+# Anvil training recipe — Code Guild · go-dev specialist (QLoRA SFT)
+#
+# The dedicated Go *development* specialist: spec/instruction -> idiomatic,
+# compilable Go. Trained on the compile-verified teacher split
+# code_guild_go_dev (every example's code was built with the real Go toolchain,
+# network-off). This is the GuildLM thesis in action: a narrow 14B Go model,
+# trained on clean Go-only data, beats a general LLM that has no Go-specific
+# training at this size.
+#
+# Named references resolve against the Anvil configs/ root:
+#   base_model: qwen2.5_coder_14b -> anvil/configs/base_models/qwen2.5_coder_14b.yaml
+#   lora:       default           -> anvil/configs/lora/default.yaml
+# Swap base_model to qwen2.5_coder_7b for a faster / lower-VRAM run on free Kaggle.
+#
+# Run (from guild-code/go/anvil, with the anvil repo importable):
+#   anvil-train --config go_dev.yaml --configs-root ../../../anvil/configs
+name: go_dev
+
+base_model: qwen2.5_coder_14b
+lora: default
+
+dataset:
+  path: "../datasets/specialists/code_guild_go_dev/code_guild_go_dev.train.jsonl"
+  eval_path: "../datasets/specialists/code_guild_go_dev/code_guild_go_dev.validation.jsonl"
+  system_prompt: "You are a GuildLM Go development specialist. Write idiomatic, secure, production-grade, standard-library Go."
+
+output_dir: "./checkpoints/go_dev_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 3
+  group_by_length: true

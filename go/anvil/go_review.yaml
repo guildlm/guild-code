@@ -1,0 +1,31 @@
+# Anvil training recipe — Code Guild · go-review specialist (QLoRA SFT)
+#
+# The dedicated Go *code-review* specialist: given Go code, find real bugs
+# (loop-var capture, race conditions, nil derefs, error-handling gaps, resource
+# leaks) and explain the idiomatic fix. Trained on the code_guild_go_review
+# teacher split. Reviews are judged by crucible's llm_judge.
+#
+#   base_model: qwen2.5_coder_14b -> anvil/configs/base_models/qwen2.5_coder_14b.yaml
+#   lora:       default           -> anvil/configs/lora/default.yaml
+# Swap base_model to qwen2.5_coder_7b for a faster / lower-VRAM run on free Kaggle.
+#
+# Run (from guild-code/go/anvil, with the anvil repo importable):
+#   anvil-train --config go_review.yaml --configs-root ../../../anvil/configs
+name: go_review
+
+base_model: qwen2.5_coder_14b
+lora: default
+
+dataset:
+  path: "../datasets/specialists/code_guild_go_review/code_guild_go_review.train.jsonl"
+  eval_path: "../datasets/specialists/code_guild_go_review/code_guild_go_review.validation.jsonl"
+  system_prompt: "You are a GuildLM Go code-review specialist. Identify real bugs and idiomatic-Go improvements; cite the exact line and give a corrected version."
+
+output_dir: "./checkpoints/go_review_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 3
+  group_by_length: true

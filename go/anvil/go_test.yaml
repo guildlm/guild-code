@@ -1,0 +1,33 @@
+# Anvil training recipe — Code Guild · go-test specialist (QLoRA SFT)
+#
+# The dedicated Go *test-writing* specialist: given Go code, produce thorough,
+# table-driven tests that compile and pass against the code under test —
+# directly the capability the Builder loop needs (today's general coders write
+# self-contradictory or non-compiling tests). Trained on the code_guild_go_test
+# teacher split (authored test pairs; judged by crucible's llm_judge rather than
+# isolated compile, since test files reference external code).
+#
+#   base_model: qwen2.5_coder_14b -> anvil/configs/base_models/qwen2.5_coder_14b.yaml
+#   lora:       default           -> anvil/configs/lora/default.yaml
+# Swap base_model to qwen2.5_coder_7b for a faster / lower-VRAM run on free Kaggle.
+#
+# Run (from guild-code/go/anvil, with the anvil repo importable):
+#   anvil-train --config go_test.yaml --configs-root ../../../anvil/configs
+name: go_test
+
+base_model: qwen2.5_coder_14b
+lora: default
+
+dataset:
+  path: "../datasets/specialists/code_guild_go_test/code_guild_go_test.train.jsonl"
+  eval_path: "../datasets/specialists/code_guild_go_test/code_guild_go_test.validation.jsonl"
+  system_prompt: "You are a GuildLM Go test-writing specialist. Write thorough, table-driven tests that compile and pass; never redeclare the code under test."
+
+output_dir: "./checkpoints/go_test_adapter"
+
+sft:
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  learning_rate: 2.0e-4
+  epochs: 3
+  group_by_length: true
