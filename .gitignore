@@ -26,3 +26,6 @@ venv/
 .idea/
 .vscode/
 .DS_Store
+
+# Continued-pretraining corpus (regenerated from $GOROOT/src; too big to commit)
+go/datasets/pretrain/go_corpus.jsonl

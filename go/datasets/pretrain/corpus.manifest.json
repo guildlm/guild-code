@@ -1,0 +1,12 @@
+{
+  "name": "go_pretrain_corpus_v1",
+  "documents": 5449,
+  "total_chars": 44175249,
+  "est_tokens": 11043812,
+  "include_tests": true,
+  "sources": [
+    "stdlib",
+    "go-chi_chi",
+    "sirupsen_logrus"
+  ]
+}
