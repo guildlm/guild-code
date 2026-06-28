@@ -1,0 +1,35 @@
+# Anvil recipe — Code Guild · Go domain-adaptive continued pretraining ($0)
+#
+# Deepens the base's Go fluency by continued (next-token) LoRA pretraining over a
+# raw-text corpus of canonical Go — the Go standard library source + vendored
+# idiomatic repos, built by go/datasets/pretrain/build_pretrain_corpus.py
+# (~11M tokens, license-clean, regenerated on demand; gitignored). One pass fits
+# a single free Kaggle T4 session, so deepening the base costs $0.
+#
+#   mode: pretrain  -> trains next-token on dataset.path's {"text": ...} rows
+#   base_model: qwen2.5_coder_14b -> swap to qwen2.5_coder_7b for less VRAM
+#
+# After this, SFT the deepened base on the role splits (go_dev/go_test/go_review)
+# for the final specialists: DAPT -> quality SFT -> Go specialist.
+#
+# Run (from guild-code/go/anvil, anvil importable):
+#   python ../datasets/pretrain/build_pretrain_corpus.py   # build the corpus
+#   anvil-train --config go_dapt.yaml --configs-root ../../../anvil/configs
+name: go_dapt
+mode: pretrain
+
+base_model: qwen2.5_coder_14b
+lora: default
+
+dataset:
+  path: "../datasets/pretrain/go_corpus.jsonl"
+  max_seq_length: 2048
+
+output_dir: "./checkpoints/go_dapt_adapter"
+
+sft:
+  batch_size: 1
+  gradient_accumulation_steps: 16
+  learning_rate: 1.0e-4
+  epochs: 1
+  group_by_length: true
