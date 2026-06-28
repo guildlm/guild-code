@@ -140,6 +140,37 @@ TASKS = [
         'package sandbox\n\nimport "sort"\n\nfunc SortedKeys(m map[string]int) []string {\n\tks := make([]string, 0, len(m))\n\tfor k := range m {\n\t\tks = append(ks, k)\n\t}\n\tsort.Strings(ks)\n\treturn ks\n}\n',
         'package sandbox\n\nimport (\n\t"reflect"\n\t"testing"\n)\n\nfunc TestSortedKeys(t *testing.T) {\n\tif got := SortedKeys(map[string]int{"b": 1, "a": 2, "c": 3}); !reflect.DeepEqual(got, []string{"a", "b", "c"}) {\n\t\tt.Errorf("got %v", got)\n\t}\n}\n',
     ),
+    # ---- harder, multi-step tasks (more discriminating) ----
+    (
+        "balanced",
+        "Write a Go function Balanced(s string) bool reporting whether the brackets ()[]{} in s are correctly balanced and nested, ignoring other characters, in package sandbox.",
+        'package sandbox\n\nfunc Balanced(s string) bool {\n\tpairs := map[rune]rune{\')\': \'(\', \']\': \'[\', \'}\': \'{\'}\n\tvar st []rune\n\tfor _, c := range s {\n\t\tswitch c {\n\t\tcase \'(\', \'[\', \'{\':\n\t\t\tst = append(st, c)\n\t\tcase \')\', \']\', \'}\':\n\t\t\tif len(st) == 0 || st[len(st)-1] != pairs[c] {\n\t\t\t\treturn false\n\t\t\t}\n\t\t\tst = st[:len(st)-1]\n\t\t}\n\t}\n\treturn len(st) == 0\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestBalanced(t *testing.T) {\n\tcases := map[string]bool{"(a[b]{c})": true, "": true, "([)]": false, "(((": false, "x)y": false, "{[()]}": true}\n\tfor in, want := range cases {\n\t\tif got := Balanced(in); got != want {\n\t\t\tt.Errorf("Balanced(%q)=%v want %v", in, got, want)\n\t\t}\n\t}\n}\n',
+    ),
+    (
+        "merge_intervals",
+        "Write a Go function Merge(in [][2]int) [][2]int that merges overlapping closed intervals and returns them sorted by start, in package sandbox.",
+        'package sandbox\n\nimport "sort"\n\nfunc Merge(in [][2]int) [][2]int {\n\tif len(in) == 0 {\n\t\treturn nil\n\t}\n\tcp := make([][2]int, len(in))\n\tcopy(cp, in)\n\tsort.Slice(cp, func(i, j int) bool { return cp[i][0] < cp[j][0] })\n\tout := [][2]int{cp[0]}\n\tfor _, iv := range cp[1:] {\n\t\tlast := &out[len(out)-1]\n\t\tif iv[0] <= last[1] {\n\t\t\tif iv[1] > last[1] {\n\t\t\t\tlast[1] = iv[1]\n\t\t\t}\n\t\t} else {\n\t\t\tout = append(out, iv)\n\t\t}\n\t}\n\treturn out\n}\n',
+        'package sandbox\n\nimport (\n\t"reflect"\n\t"testing"\n)\n\nfunc TestMerge(t *testing.T) {\n\tgot := Merge([][2]int{{1, 3}, {2, 6}, {8, 10}, {15, 18}})\n\twant := [][2]int{{1, 6}, {8, 10}, {15, 18}}\n\tif !reflect.DeepEqual(got, want) {\n\t\tt.Errorf("got %v want %v", got, want)\n\t}\n\tif got := Merge([][2]int{{1, 4}, {4, 5}}); !reflect.DeepEqual(got, [][2]int{{1, 5}}) {\n\t\tt.Errorf("touching: got %v", got)\n\t}\n}\n',
+    ),
+    (
+        "roman",
+        "Write a Go function RomanToInt(s string) int converting a valid uppercase Roman numeral to its integer value (handle subtractive pairs like IV, IX), in package sandbox.",
+        'package sandbox\n\nfunc RomanToInt(s string) int {\n\tval := map[byte]int{\'I\': 1, \'V\': 5, \'X\': 10, \'L\': 50, \'C\': 100, \'D\': 500, \'M\': 1000}\n\ttotal := 0\n\tfor i := 0; i < len(s); i++ {\n\t\tv := val[s[i]]\n\t\tif i+1 < len(s) && v < val[s[i+1]] {\n\t\t\ttotal -= v\n\t\t} else {\n\t\t\ttotal += v\n\t\t}\n\t}\n\treturn total\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestRomanToInt(t *testing.T) {\n\tcases := map[string]int{"III": 3, "IV": 4, "IX": 9, "LVIII": 58, "MCMXCIV": 1994}\n\tfor in, want := range cases {\n\t\tif got := RomanToInt(in); got != want {\n\t\t\tt.Errorf("RomanToInt(%q)=%d want %d", in, got, want)\n\t\t}\n\t}\n}\n',
+    ),
+    (
+        "rle_decode",
+        "Write a Go function Decode(s string) string that expands a run-length encoding like \"a3b2c1\" into \"aaabbc\" (each letter followed by a one-or-more-digit count), in package sandbox.",
+        'package sandbox\n\nimport (\n\t"strings"\n)\n\nfunc Decode(s string) string {\n\tvar b strings.Builder\n\tr := []rune(s)\n\tfor i := 0; i < len(r); {\n\t\tch := r[i]\n\t\ti++\n\t\tn := 0\n\t\tfor i < len(r) && r[i] >= \'0\' && r[i] <= \'9\' {\n\t\t\tn = n*10 + int(r[i]-\'0\')\n\t\t\ti++\n\t\t}\n\t\tfor k := 0; k < n; k++ {\n\t\t\tb.WriteRune(ch)\n\t\t}\n\t}\n\treturn b.String()\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestDecode(t *testing.T) {\n\tif got := Decode("a3b2c1"); got != "aaabbc" {\n\t\tt.Errorf("got %q", got)\n\t}\n\tif got := Decode("x10"); got != "xxxxxxxxxx" {\n\t\tt.Errorf("multi-digit: got %q", got)\n\t}\n}\n',
+    ),
+    (
+        "caesar",
+        "Write a Go function Caesar(s string, n int) string shifting each ASCII letter by n positions (wrapping within its case), leaving non-letters unchanged, in package sandbox.",
+        'package sandbox\n\nfunc Caesar(s string, n int) string {\n\tn = ((n % 26) + 26) % 26\n\tout := []rune(s)\n\tfor i, c := range out {\n\t\tswitch {\n\t\tcase c >= \'a\' && c <= \'z\':\n\t\t\tout[i] = \'a\' + (c-\'a\'+rune(n))%26\n\t\tcase c >= \'A\' && c <= \'Z\':\n\t\t\tout[i] = \'A\' + (c-\'A\'+rune(n))%26\n\t\t}\n\t}\n\treturn string(out)\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestCaesar(t *testing.T) {\n\tif got := Caesar("abcXYZ", 3); got != "defABC" {\n\t\tt.Errorf("got %q", got)\n\t}\n\tif got := Caesar("Hello, World!", 13); got != "Uryyb, Jbeyq!" {\n\t\tt.Errorf("rot13: got %q", got)\n\t}\n}\n',
+    ),
 ]
 
 
