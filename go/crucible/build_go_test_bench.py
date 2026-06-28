@@ -140,6 +140,42 @@ TASKS = [
         'package sandbox\n\nimport "strings"\n\nfunc Repeat(s string, n int) string {\n\treturn strings.Repeat(s, n+1)\n}\n',
         'package sandbox\n\nimport "testing"\n\nfunc TestRepeat(t *testing.T) {\n\tif Repeat("ab", 3) != "ababab" {\n\t\tt.Fatal("ab x3")\n\t}\n\tif Repeat("x", 0) != "" {\n\t\tt.Fatal("n<=0 should be empty")\n\t}\n}\n',
     ),
+    # ---- harder mutants: a trivial / one-case test won't catch these ----
+    (
+        "is_prime",
+        "Write a Go test (package sandbox) for IsPrime(n int) bool (n<2 is not prime).",
+        "package sandbox\n\nfunc IsPrime(n int) bool {\n\tif n < 2 {\n\t\treturn false\n\t}\n\tfor i := 2; i*i <= n; i++ {\n\t\tif n%i == 0 {\n\t\t\treturn false\n\t\t}\n\t}\n\treturn true\n}\n",
+        "package sandbox\n\nfunc IsPrime(n int) bool { return n%2 != 0 }\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestIsPrime(t *testing.T) {\n\tif !IsPrime(7) || !IsPrime(2) || !IsPrime(13) {\n\t\tt.Fatal("primes")\n\t}\n\tif IsPrime(9) || IsPrime(1) || IsPrime(0) || IsPrime(15) {\n\t\tt.Fatal("non-primes")\n\t}\n}\n',
+    ),
+    (
+        "dedup_order",
+        "Write a Go test (package sandbox) for Dedup(xs []int) []int removing duplicates while preserving first-seen order.",
+        "package sandbox\n\nfunc Dedup(xs []int) []int {\n\tseen := map[int]bool{}\n\tout := []int{}\n\tfor _, x := range xs {\n\t\tif !seen[x] {\n\t\t\tseen[x] = true\n\t\t\tout = append(out, x)\n\t\t}\n\t}\n\treturn out\n}\n",
+        "package sandbox\n\nfunc Dedup(xs []int) []int { return xs }\n",
+        'package sandbox\n\nimport (\n\t"reflect"\n\t"testing"\n)\n\nfunc TestDedup(t *testing.T) {\n\tif got := Dedup([]int{1, 1, 2, 3, 2, 1}); !reflect.DeepEqual(got, []int{1, 2, 3}) {\n\t\tt.Fatalf("got %v", got)\n\t}\n}\n',
+    ),
+    (
+        "median",
+        "Write a Go test (package sandbox) for Median(xs []int) float64 (sorted-middle; average of two middles for even length; assume non-empty).",
+        "package sandbox\n\nimport \"sort\"\n\nfunc Median(xs []int) float64 {\n\tc := append([]int(nil), xs...)\n\tsort.Ints(c)\n\tn := len(c)\n\tif n%2 == 1 {\n\t\treturn float64(c[n/2])\n\t}\n\treturn float64(c[n/2-1]+c[n/2]) / 2\n}\n",
+        "package sandbox\n\nimport \"sort\"\n\nfunc Median(xs []int) float64 {\n\tc := append([]int(nil), xs...)\n\tsort.Ints(c)\n\treturn float64(c[len(c)/2])\n}\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestMedian(t *testing.T) {\n\tif Median([]int{3, 1, 2}) != 2 {\n\t\tt.Fatal("odd")\n\t}\n\tif Median([]int{4, 1, 3, 2}) != 2.5 {\n\t\tt.Fatal("even must average the two middles")\n\t}\n}\n',
+    ),
+    (
+        "title_each",
+        "Write a Go test (package sandbox) for Title(s string) string upcasing the first letter of each space-separated word.",
+        'package sandbox\n\nimport (\n\t"strings"\n\t"unicode"\n)\n\nfunc Title(s string) string {\n\tw := strings.Fields(s)\n\tfor i, x := range w {\n\t\tr := []rune(x)\n\t\tr[0] = unicode.ToUpper(r[0])\n\t\tw[i] = string(r)\n\t}\n\treturn strings.Join(w, " ")\n}\n',
+        'package sandbox\n\nimport (\n\t"strings"\n\t"unicode"\n)\n\nfunc Title(s string) string {\n\tr := []rune(s)\n\tif len(r) > 0 {\n\t\tr[0] = unicode.ToUpper(r[0])\n\t}\n\treturn string(r)\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestTitle(t *testing.T) {\n\tif Title("hello world go") != "Hello World Go" {\n\t\tt.Fatal("each word must be capitalised")\n\t}\n}\n',
+    ),
+    (
+        "clamp_pair",
+        "Write a Go test (package sandbox) for Clamp(v, lo, hi int) int constraining v to [lo, hi].",
+        "package sandbox\n\nfunc Clamp(v, lo, hi int) int {\n\tif v < lo {\n\t\treturn lo\n\t}\n\tif v > hi {\n\t\treturn hi\n\t}\n\treturn v\n}\n",
+        "package sandbox\n\nfunc Clamp(v, lo, hi int) int {\n\tif v > hi {\n\t\treturn hi\n\t}\n\treturn v\n}\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestClamp(t *testing.T) {\n\tif Clamp(99, 0, 10) != 10 {\n\t\tt.Fatal("above")\n\t}\n\tif Clamp(-5, 0, 10) != 0 {\n\t\tt.Fatal("below must clamp to lo")\n\t}\n}\n',
+    ),
 ]
 
 
