@@ -12,7 +12,31 @@ import glob
 import hashlib
 import importlib.util
 import os
+import re
+import subprocess
 import sys
+
+_FENCE = re.compile(r"```(?:go|golang)?\s*\n(.*?)```", re.DOTALL)
+
+
+def _gofmt_syntax_ok(response: str) -> bool:
+    """Syntax-check a teacher response's first Go block with gofmt.
+
+    go_tester examples are complete files but aren't compile-verified (they
+    reference external code), so authoring typos (a missing paren) would slip
+    into the training data. gofmt parses without type-checking, catching syntax
+    errors while tolerating undefined symbols.
+    """
+    m = _FENCE.search(response)
+    if not m:
+        return True
+    try:
+        proc = subprocess.run(
+            ["gofmt", "-e"], input=m.group(1), capture_output=True, text=True, timeout=20
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return True
+    return proc.returncode == 0
 
 # Locate a forge checkout so we can reuse its verifier + dataset builder.
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -62,6 +86,11 @@ def main():
                 if vr.diagnostics:
                     print("     ", vr.diagnostics.strip().replace(chr(10), " ")[:160])
                 continue
+        elif ex["role"] == "go_tester" and not _gofmt_syntax_ok(ex["response"]):
+            # Tester files aren't compile-verified, but they must at least parse.
+            dropped += 1
+            print(f"  DROP (tester syntax): {ex['instruction'][:60]}...")
+            continue
         seen.add(h)
         kept.append({
             "instruction": ex["instruction"],
