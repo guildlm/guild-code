@@ -59,3 +59,28 @@ Two benchmarks (same runner, `--bench`):
 ```bash
 python bench_compare.py --models guildlm-go-dev,qwen2.5-coder:7b --bench data/go_edit_bench.jsonl
 ```
+
+## Serve a trained specialist locally ($0, no GGUF/Ollama)
+
+A trained LoRA adapter becomes a usable, OpenAI-compatible model via Apple MLX —
+the bridge into the Builder agent loop:
+
+```bash
+# from guild-code/go
+./tools/serve_specialist.sh go-dev 8080     # serves the go-dev adapter on :8080/v1
+./tools/serve_specialist.sh go-test 8081    # and go-test on :8081/v1
+```
+
+Then point the Builder at them (dev writes impl, the test specialist writes the
+tests):
+
+```bash
+guildlm-build --spec specs/tasks-api.yaml --out ./generated/x \
+  --model guildlm --base-url http://localhost:8080/v1 \
+  --test-model guildlm --test-base-url http://localhost:8081/v1 \
+  --candidates 3
+```
+
+Measured champions (local MLX, $0): go-dev (code-gen — the strong coder base is
+the lever, SFT marginal), **go-test 8/13 bug-catch vs base 6/13 (SFT wins here)**.
+See the [research log](https://guildlm.github.io/research/) for the full numbers.
