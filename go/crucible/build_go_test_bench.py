@@ -105,6 +105,41 @@ TASKS = [
         "package sandbox\n\nfunc CountVowels(s string) int {\n\tn := 0\n\tfor _, c := range s {\n\t\tif c == 'a' {\n\t\t\tn++\n\t\t}\n\t}\n\treturn n\n}\n",
         'package sandbox\n\nimport "testing"\n\nfunc TestCountVowels(t *testing.T) {\n\tif CountVowels("Hello World") != 3 {\n\t\tt.Fatal("Hello World has 3 vowels")\n\t}\n\tif CountVowels("AEIOU") != 5 {\n\t\tt.Fatal("case-insensitive, all 5")\n\t}\n}\n',
     ),
+    (
+        "sum",
+        "Write a Go test (package sandbox) for Sum(xs []int) int, the sum of all elements.",
+        "package sandbox\n\nfunc Sum(xs []int) int {\n\ts := 0\n\tfor _, x := range xs {\n\t\ts += x\n\t}\n\treturn s\n}\n",
+        "package sandbox\n\nfunc Sum(xs []int) int {\n\ts := 0\n\tfor _, x := range xs[1:] {\n\t\ts += x\n\t}\n\treturn s\n}\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestSum(t *testing.T) {\n\tif Sum([]int{1, 2, 3}) != 6 {\n\t\tt.Fatal("1+2+3 should be 6")\n\t}\n\tif Sum([]int{5}) != 5 {\n\t\tt.Fatal("single element")\n\t}\n}\n',
+    ),
+    (
+        "gcd",
+        "Write a Go test (package sandbox) for GCD(a, b int) int, the greatest common divisor.",
+        "package sandbox\n\nfunc GCD(a, b int) int {\n\tfor b != 0 {\n\t\ta, b = b, a%b\n\t}\n\treturn a\n}\n",
+        "package sandbox\n\nfunc GCD(a, b int) int { return a }\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestGCD(t *testing.T) {\n\tif GCD(12, 8) != 4 {\n\t\tt.Fatal("gcd(12,8) should be 4")\n\t}\n\tif GCD(7, 13) != 1 {\n\t\tt.Fatal("coprime gcd should be 1")\n\t}\n}\n',
+    ),
+    (
+        "last",
+        "Write a Go test (package sandbox) for Last(xs []int) (int, bool), the last element and false if empty.",
+        "package sandbox\n\nfunc Last(xs []int) (int, bool) {\n\tif len(xs) == 0 {\n\t\treturn 0, false\n\t}\n\treturn xs[len(xs)-1], true\n}\n",
+        "package sandbox\n\nfunc Last(xs []int) (int, bool) {\n\tif len(xs) == 0 {\n\t\treturn 0, false\n\t}\n\treturn xs[0], true\n}\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestLast(t *testing.T) {\n\tif v, ok := Last([]int{1, 2, 3}); !ok || v != 3 {\n\t\tt.Fatalf("last = %d,%v want 3,true", v, ok)\n\t}\n\tif _, ok := Last(nil); ok {\n\t\tt.Fatal("empty should be false")\n\t}\n}\n',
+    ),
+    (
+        "is_sorted",
+        "Write a Go test (package sandbox) for IsSorted(xs []int) bool, true when xs is non-decreasing.",
+        "package sandbox\n\nfunc IsSorted(xs []int) bool {\n\tfor i := 1; i < len(xs); i++ {\n\t\tif xs[i] < xs[i-1] {\n\t\t\treturn false\n\t\t}\n\t}\n\treturn true\n}\n",
+        "package sandbox\n\nfunc IsSorted(xs []int) bool { return true }\n",
+        'package sandbox\n\nimport "testing"\n\nfunc TestIsSorted(t *testing.T) {\n\tif !IsSorted([]int{1, 2, 2, 3}) {\n\t\tt.Fatal("non-decreasing is sorted")\n\t}\n\tif IsSorted([]int{3, 1, 2}) {\n\t\tt.Fatal("3,1,2 is not sorted")\n\t}\n}\n',
+    ),
+    (
+        "repeat",
+        "Write a Go test (package sandbox) for Repeat(s string, n int) string, s concatenated n times (empty for n<=0).",
+        'package sandbox\n\nimport "strings"\n\nfunc Repeat(s string, n int) string {\n\tif n <= 0 {\n\t\treturn ""\n\t}\n\treturn strings.Repeat(s, n)\n}\n',
+        'package sandbox\n\nimport "strings"\n\nfunc Repeat(s string, n int) string {\n\treturn strings.Repeat(s, n+1)\n}\n',
+        'package sandbox\n\nimport "testing"\n\nfunc TestRepeat(t *testing.T) {\n\tif Repeat("ab", 3) != "ababab" {\n\t\tt.Fatal("ab x3")\n\t}\n\tif Repeat("x", 0) != "" {\n\t\tt.Fatal("n<=0 should be empty")\n\t}\n}\n',
+    ),
 ]
 
 
