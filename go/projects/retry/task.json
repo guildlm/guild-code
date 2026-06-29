@@ -1,0 +1,25 @@
+{
+  "name": "retry",
+  "go_module": "example.com/retry",
+  "description": "A standard-library-only retry helper with exponential backoff and context cancellation. Retry(ctx, attempts, base, fn) retries fn on error with a doubling delay (base, 2*base, 4*base, ...), returning nil on first success or the last error once attempts are exhausted; it stops early and joins ctx.Err() if the context is done before or during a backoff wait. A generic Do[T] form returns a value, and nextDelay saturates the doubling to avoid duration overflow.",
+  "test_files": [
+    "retry_test.go"
+  ],
+  "maintain": {
+    "request": "Add a WithMaxDelay functional option so callers can cap the exponential backoff: no single wait between attempts should exceed the supplied duration, even though the delay keeps doubling up to that cap. Thread the option (variadic, backward compatible) through both Retry and Do.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "retry.go",
+    "content": "// Package retry provides helpers to retry an operation with exponential\n// backoff while honouring context cancellation.\npackage retry\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"time\"\n)\n\n// ErrNoAttempts is returned when Retry or Do is called with attempts <= 0.\nvar ErrNoAttempts = errors.New(\"retry: attempts must be greater than zero\")\n\n// Retry calls fn up to attempts times, sleeping between failed attempts for an\n// exponentially increasing delay (base, 2*base, 4*base, ...). It returns nil as\n// soon as fn succeeds, or the last error from fn once attempts are exhausted.\n//\n// Retry honours ctx: if ctx is done before an attempt, or while waiting between\n// attempts, Retry stops early and returns the joined value of the last fn error\n// (if any) and ctx.Err(). If attempts <= 0, Retry returns ErrNoAttempts without\n// calling fn.\nfunc Retry(ctx context.Context, attempts int, base time.Duration, fn func() error) error {\n\t_, err := Do(ctx, attempts, base, func() (struct{}, error) {\n\t\treturn struct{}{}, fn()\n\t})\n\treturn err\n}\n\n// Do is the value-returning form of Retry. It calls fn up to attempts times and\n// returns the first successful value. On failure it returns the zero value of T\n// together with the error, following the same backoff and cancellation rules as\n// Retry.\nfunc Do[T any](ctx context.Context, attempts int, base time.Duration, fn func() (T, error)) (T, error) {\n\tvar zero T\n\tif attempts <= 0 {\n\t\treturn zero, ErrNoAttempts\n\t}\n\n\tvar lastErr error\n\tdelay := base\n\tfor i := 0; i < attempts; i++ {\n\t\t// Stop before attempting if the context is already done.\n\t\tif err := ctx.Err(); err != nil {\n\t\t\treturn zero, errors.Join(lastErr, err)\n\t\t}\n\n\t\tval, err := fn()\n\t\tif err == nil {\n\t\t\treturn val, nil\n\t\t}\n\t\tlastErr = err\n\n\t\t// Do not sleep after the final attempt.\n\t\tif i == attempts {\n\t\t\tbreak\n\t\t}\n\n\t\t// Wait for the backoff delay or context cancellation.\n\t\ttimer := time.NewTimer(delay)\n\t\tselect {\n\t\tcase <-ctx.Done():\n\t\t\ttimer.Stop()\n\t\t\treturn zero, errors.Join(lastErr, ctx.Err())\n\t\tcase <-timer.C:\n\t\t}\n\t\tdelay = nextDelay(delay)\n\t}\n\treturn zero, lastErr\n}\n",
+    "bug": "The final-attempt guard uses `if i == attempts` instead of `if i == attempts-1`, an off-by-one that never fires (i only reaches attempts-1), so after the last failed attempt the code still creates a timer and sleeps a full backoff delay (and needlessly blocks on the context) before returning the error.",
+    "keywords": [
+      "off-by-one in the final attempt guard",
+      "i == attempts can never be true",
+      "break never executes on the last iteration",
+      "should compare i == attempts-1",
+      "extra backoff sleep after the last failed attempt",
+      "unnecessary delay before returning the error"
+    ]
+  }
+}

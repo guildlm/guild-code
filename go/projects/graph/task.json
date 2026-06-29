@@ -1,0 +1,24 @@
+{
+  "name": "graph",
+  "go_module": "graph",
+  "description": "A directed graph backed by an adjacency list, with AddEdge(a, b) to build edges and ShortestPath(from, to) ([]int, bool) that runs breadth-first search to return the fewest-edges node path (inclusive of both endpoints) or false when the target is unreachable. Standard library only, go 1.23.",
+  "test_files": [
+    "graph_test.go"
+  ],
+  "maintain": {
+    "request": "Add a Reachable(from int) []int method that returns every node reachable from a given start node (including the start node itself), using BFS, with the result sorted in ascending order for deterministic output; return nil when the start node is not in the graph. Include table-driven tests covering cycles, isolated components, sink nodes, and a missing node.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "graph.go",
+    "content": "// Package graph implements a directed graph with a BFS shortest-path search.\npackage graph\n\n// Graph is a directed graph whose nodes are identified by int keys. Edges are\n// stored as an adjacency list.\ntype Graph struct {\n\tadj map[int][]int\n}\n\n// New returns an empty Graph ready for use.\nfunc New() *Graph {\n\treturn &Graph{adj: make(map[int][]int)}\n}\n\n// AddNode ensures that node n exists in the graph, even if it has no edges.\nfunc (g *Graph) AddNode(n int) {\n\tif _, ok := g.adj[n]; !ok {\n\t\tg.adj[n] = nil\n\t}\n}\n\n// AddEdge adds a directed edge from a to b. Both endpoints are registered as\n// nodes. Parallel edges are not deduplicated, which does not affect the\n// shortest-path result.\nfunc (g *Graph) AddEdge(a, b int) {\n\tg.AddNode(b)\n\tg.adj[a] = append(g.adj[a], b)\n}\n\n// ShortestPath returns the shortest path, by number of edges, from node from to\n// node to using breadth-first search. The returned slice includes both\n// endpoints. The boolean result is false when no path exists; in that case the\n// returned slice is nil.\n//\n// A path from a node to itself is always the single-element path [from].\nfunc (g *Graph) ShortestPath(from, to int) ([]int, bool) {\n\tif _, ok := g.adj[from]; !ok {\n\t\treturn nil, false\n\t}\n\tif from == to {\n\t\treturn []int{from}, true\n\t}\n\n\tprev := map[int]int{from: from}\n\tqueue := []int{from}\n\n\tfor len(queue) > 0 {\n\t\tcur := queue[len(queue)-1]\n\t\tqueue = queue[:len(queue)-1]\n\n\t\tfor _, next := range g.adj[cur] {\n\t\t\tif _, seen := prev[next]; seen {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tprev[next] = cur\n\t\t\tif next == to {\n\t\t\t\treturn buildPath(prev, from, to), true\n\t\t\t}\n\t\t\tqueue = append(queue, next)\n\t\t}\n\t}\n\n\treturn nil, false\n}\n\n// buildPath reconstructs the path from from to to by walking the prev map\n// backwards and then reversing the result.\nfunc buildPath(prev map[int]int, from, to int) []int {\n\tpath := []int{to}\n\tfor cur := to; cur != from; {\n\t\tcur = prev[cur]\n\t\tpath = append(path, cur)\n\t}\n\n\tfor i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {\n\t\tpath[i], path[j] = path[j], path[i]\n\t}\n\treturn path\n}\n",
+    "bug": "ShortestPath pops the frontier node from the back of the slice (queue[len(queue)-1]) instead of the front, so the traversal is last-in-first-out (depth-first) rather than a real BFS queue, and it can return a path that is not the shortest.",
+    "keywords": [
+      "lifo stack instead of fifo queue",
+      "dequeues from the back queue[len(queue)-1]",
+      "depth-first instead of breadth-first",
+      "can return a non-shortest path",
+      "should pop from the front queue[0]"
+    ]
+  }
+}

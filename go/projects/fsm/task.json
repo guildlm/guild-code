@@ -1,0 +1,24 @@
+{
+  "name": "fsm",
+  "go_module": "example.com/fsm",
+  "description": "",
+  "test_files": [
+    "fsm_test.go"
+  ],
+  "maintain": {
+    "request": "Add observer support: a new OnTransition(fn) method that registers callbacks invoked, in registration order, after each successful transition with (from, event, to). Observers must NOT be called for rejected events, and nil callbacks must be ignored. This lets callers log/audit state changes without polling Current().",
+    "verified_green": true
+  },
+  "review": {
+    "path": "fsm.go",
+    "content": "// Package fsm provides a small, generic finite state machine.\n//\n// A Machine is parameterized over a state type S and an event type E (both\n// comparable). Allowed transitions are registered with Permit, the current\n// state is read with Current, and events are applied with Fire. Firing an event\n// that is not permitted from the current state leaves the state unchanged and\n// returns an error wrapping the sentinel ErrInvalidTransition.\n//\n// A Machine is intended for sequential use by a single goroutine. It performs\n// no internal locking and is not safe for concurrent use without external\n// synchronization.\npackage fsm\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\n// ErrInvalidTransition is the sentinel returned (wrapped) by Fire when an event\n// is not permitted from the machine's current state. Callers can detect it with\n// errors.Is.\nvar ErrInvalidTransition = errors.New(\"fsm: invalid transition\")\n\n// key uniquely identifies a (state, event) pair used to look up a transition.\ntype key[S, E comparable] struct {\n\tfrom  S\n\tevent E\n}\n\n// Machine is a finite state machine over state type S and event type E.\n//\n// The zero Machine is not usable; construct one with New.\ntype Machine[S, E comparable] struct {\n\tcurrent     S\n\ttransitions map[key[S, E]]S\n}\n\n// New creates a Machine in the given initial state with no transitions\n// registered. Use Permit to register the allowed transitions.\nfunc New[S, E comparable](initial S) *Machine[S, E] {\n\treturn &Machine[S, E]{\n\t\tcurrent:     initial,\n\t\ttransitions: make(map[key[S, E]]S),\n\t}\n}\n\n// Permit registers that applying event e while in state from advances the\n// machine to state to. Permit returns the receiver so calls can be chained.\n//\n// Registering the same (from, e) pair again overwrites the previous\n// destination.\nfunc (m *Machine[S, E]) Permit(from S, e E, to S) *Machine[S, E] {\n\tm.transitions[key[S, E]{from: from, event: e}] = to\n\treturn m\n}\n\n// Current returns the machine's current state.\nfunc (m *Machine[S, E]) Current() S {\n\treturn m.current\n}\n\n// Can reports whether event e is permitted from the current state.\nfunc (m *Machine[S, E]) Can(e E) bool {\n\t_, ok := m.transitions[key[S, E]{from: m.current, event: e}]\n\treturn ok\n}\n\n// Fire applies event e to the machine. If e is permitted from the current\n// state, the machine advances to the destination state and Fire returns nil.\n// Otherwise the state is left unchanged and Fire returns an error wrapping\n// ErrInvalidTransition.\nfunc (m *Machine[S, E]) Fire(e E) error {\n\tto, ok := m.transitions[key[S, E]{from: m.current, event: e}]\n\tm.current = to\n\tif !ok {\n\t\treturn fmt.Errorf(\"%w: event %v from state %v\", ErrInvalidTransition, e, m.current)\n\t}\n\treturn nil\n}\n",
+    "bug": "In Fire, the destination state is assigned with m.current = to before the ok check, so a rejected (illegal) event overwrites the current state with the zero value instead of leaving it unchanged.",
+    "keywords": [
+      "state mutated on invalid transition",
+      "current set before ok check",
+      "rejected event corrupts state to zero value",
+      "fire must not change state on error",
+      "assignment before guard clause"
+    ]
+  }
+}

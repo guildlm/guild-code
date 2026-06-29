@@ -46,5 +46,77 @@
     "files": 4,
     "maintain_green": true,
     "has_review": true
+  },
+  {
+    "name": "bounded-resource-pool",
+    "files": 4,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "retry",
+    "files": 4,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "trie",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "priority-queue",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "fsm",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "configloader",
+    "files": 4,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "ringbuffer",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "lruttl",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "graph",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "go-string-template",
+    "files": 4,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "pool",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
+  },
+  {
+    "name": "pagerepo",
+    "files": 3,
+    "maintain_green": true,
+    "has_review": true
   }
 ]

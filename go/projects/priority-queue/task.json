@@ -1,0 +1,24 @@
+{
+  "name": "priority-queue",
+  "go_module": "pq",
+  "description": "A generic min-heap priority queue built on container/heap. The exported PriorityQueue[T] hides all heap.Interface boilerplate (Len/Less/Swap/Push/Pop) inside an unexported minHeap[T] type, exposing only New, Push(item, priority), Pop() (T, bool), and Len(). Lowest-priority items dequeue first; ties among equal priorities are broken FIFO via an insertion-order sequence counter. Standard library only, go 1.23, gofmt-clean. Verified GREEN in /tmp/wf2-go-3 with `go build ./... && go vet ./... && go test ./...` (plus `gofmt -l .` returning nothing).",
+  "test_files": [
+    "pq_test.go"
+  ],
+  "maintain": {
+    "request": "Add a Peek() (T, bool) method that returns the lowest-priority item without removing it (false on an empty queue), so callers can inspect the next item before deciding whether to dequeue it. Cover it with a table/edge-case test (empty queue, no mutation after peek, repeated peek, and peek reflecting the new min after a pop).",
+    "verified_green": true
+  },
+  "review": {
+    "path": "pq.go",
+    "content": "// Package pq provides a generic min-heap priority queue built on\n// container/heap. The lowest-priority item is always dequeued first.\n//\n// The heap.Interface boilerplate is kept unexported so callers only deal\n// with a small, type-safe API: Push, Pop and Len.\npackage pq\n\nimport \"container/heap\"\n\n// PriorityQueue is a min-heap of items of type T. Items with the smallest\n// priority value are returned first by Pop. Ties are broken in favor of the\n// item that was pushed earlier (FIFO among equal priorities).\n//\n// The zero value is not ready for use; create a queue with New.\ntype PriorityQueue[T any] struct {\n\th *minHeap[T]\n}\n\n// New returns an empty PriorityQueue ready for use.\nfunc New[T any]() *PriorityQueue[T] {\n\th := &minHeap[T]{}\n\theap.Init(h)\n\treturn &PriorityQueue[T]{h: h}\n}\n\n// Len reports the number of items currently in the queue.\nfunc (pq *PriorityQueue[T]) Len() int {\n\treturn pq.h.Len()\n}\n\n// Push adds item to the queue with the given priority. Lower priority values\n// are dequeued before higher ones.\nfunc (pq *PriorityQueue[T]) Push(item T, priority int) {\n\theap.Push(pq.h, entry[T]{value: item, priority: priority, seq: pq.h.counter})\n\tpq.h.counter++\n}\n\n// Peek returns the lowest-priority item without removing it. The boolean\n// result is false if the queue is empty, in which case the zero value of T\n// is returned.\nfunc (pq *PriorityQueue[T]) Peek() (T, bool) {\n\tif pq.h.Len() == 0 {\n\t\tvar zero T\n\t\treturn zero, false\n\t}\n\treturn pq.h.items[0].value, true\n}\n\n// Pop removes and returns the lowest-priority item. The boolean result is\n// false if the queue is empty, in which case the zero value of T is returned.\nfunc (pq *PriorityQueue[T]) Pop() (T, bool) {\n\tif pq.h.Len() == 0 {\n\t\tvar zero T\n\t\treturn zero, false\n\t}\n\te := heap.Pop(pq.h).(entry[T])\n\treturn e.value, true\n}\n\n// entry is one stored element. seq preserves insertion order so that items\n// sharing a priority are returned FIFO.\ntype entry[T any] struct {\n\tvalue    T\n\tpriority int\n\tseq      uint64\n}\n\n// minHeap implements heap.Interface for a slice of entry[T]. It is unexported\n// so the boilerplate never leaks into the public API.\ntype minHeap[T any] struct {\n\titems   []entry[T]\n\tcounter uint64\n}\n\nfunc (h *minHeap[T]) Len() int { return len(h.items) }\n\nfunc (h *minHeap[T]) Less(i, j int) bool {\n\tif h.items[i].priority != h.items[j].priority {\n\t\treturn h.items[i].priority < h.items[j].priority\n\t}\n\treturn h.items[i].seq > h.items[j].seq\n}\n\nfunc (h *minHeap[T]) Swap(i, j int) {\n\th.items[i], h.items[j] = h.items[j], h.items[i]\n}\n\nfunc (h *minHeap[T]) Push(x any) {\n\th.items = append(h.items, x.(entry[T]))\n}\n\nfunc (h *minHeap[T]) Pop() any {\n\told := h.items\n\tn := len(old)\n\te := old[n-1]\n\told[n-1] = entry[T]{} // avoid retaining a reference for the GC\n\th.items = old[:n-1]\n\treturn e\n}\n",
+    "bug": "In minHeap.Less the tie-break comparison for equal priorities uses `seq > seq` instead of `seq < seq`, reversing insertion order so equal-priority items are dequeued LIFO instead of the documented FIFO order.",
+    "keywords": [
+      "tie-break comparison reversed",
+      "equal priorities pop lifo not fifo",
+      "seq should use less-than",
+      "insertion order not preserved",
+      "violates documented stable fifo ordering"
+    ]
+  }
+}

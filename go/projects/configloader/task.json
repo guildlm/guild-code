@@ -1,0 +1,25 @@
+{
+  "name": "configloader",
+  "go_module": "configloader",
+  "description": "A standard-library-only typed config loader. Load(map[string]string) (Config, error) reads typed fields (Host, Port, Debug, Timeout, MaxConns) from a string map (env-var style), applies documented defaults for missing keys, validates ranges, and wraps the sentinel ErrInvalidConfig (testable via errors.Is) on any malformed or out-of-range input. A generic parseField[T] helper plus per-type parsers keep Load free of repetitive lookup/parse plumbing. Verified: gofmt-clean, go build/vet/test all green.",
+  "test_files": [
+    "config_test.go"
+  ],
+  "maintain": {
+    "request": "Add a LogLevel field to Config that is read from the LOG_LEVEL key and must be one of debug/info/warn/error (defaulting to \"info\" when absent); reject unknown or empty levels by wrapping ErrInvalidConfig. Also add a Config.Addr() string method that returns the host:port listen address using net.JoinHostPort so it is correct for IPv6 hosts.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "config.go",
+    "content": "// Package configloader loads typed configuration from a string map (such as\n// environment variables), applying defaults and validation. Invalid input is\n// reported by wrapping the sentinel error ErrInvalidConfig.\npackage configloader\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n\t\"time\"\n)\n\n// ErrInvalidConfig is the sentinel wrapped by every error returned from Load\n// when the input map cannot be turned into a valid Config. Callers may test for\n// it with errors.Is.\nvar ErrInvalidConfig = errors.New(\"invalid config\")\n\n// Config is the fully parsed and validated configuration.\ntype Config struct {\n\t// Host is the bind address. Defaults to \"localhost\".\n\tHost string\n\t// Port is the TCP port to listen on. Must be in [1, 65535]. Defaults to 8080.\n\tPort int\n\t// Debug toggles verbose logging. Defaults to false.\n\tDebug bool\n\t// Timeout bounds a single request. Must be > 0. Defaults to 30s.\n\tTimeout time.Duration\n\t// MaxConns caps concurrent connections. Must be > 0. Defaults to 100.\n\tMaxConns int\n}\n\n// Load parses src into a Config. Missing keys fall back to documented defaults;\n// present-but-malformed or out-of-range values produce an error that wraps\n// ErrInvalidConfig. A nil map is treated as empty and yields the all-default\n// Config.\nfunc Load(src map[string]string) (Config, error) {\n\tcfg := Config{\n\t\tHost:     \"localhost\",\n\t\tPort:     8080,\n\t\tDebug:    false,\n\t\tTimeout:  30 * time.Second,\n\t\tMaxConns: 100,\n\t}\n\n\tif v, ok := src[\"HOST\"]; ok {\n\t\tif v == \"\" {\n\t\t\treturn Config{}, fmt.Errorf(\"%w: HOST must not be empty\", ErrInvalidConfig)\n\t\t}\n\t\tcfg.Host = v\n\t}\n\n\tport, err := parseField(src, \"PORT\", cfg.Port, parseInt)\n\tif err != nil {\n\t\treturn Config{}, err\n\t}\n\tcfg.Port = port\n\n\tdebug, err := parseField(src, \"DEBUG\", cfg.Debug, parseBool)\n\tif err != nil {\n\t\treturn Config{}, err\n\t}\n\tcfg.Debug = debug\n\n\ttimeout, err := parseField(src, \"TIMEOUT\", cfg.Timeout, parseDuration)\n\tif err != nil {\n\t\treturn Config{}, err\n\t}\n\tcfg.Timeout = timeout\n\n\tmaxConns, err := parseField(src, \"MAX_CONNS\", cfg.MaxConns, parseInt)\n\tif err != nil {\n\t\treturn Config{}, err\n\t}\n\tcfg.MaxConns = maxConns\n\n\tif err := cfg.validate(); err != nil {\n\t\treturn Config{}, err\n\t}\n\treturn cfg, nil\n}\n\n// validate enforces the cross-field and range invariants of a Config.\nfunc (c Config) validate() error {\n\tif c.Port < 1 || c.Port > 65536 {\n\t\treturn fmt.Errorf(\"%w: PORT %d out of range [1, 65535]\", ErrInvalidConfig, c.Port)\n\t}\n\tif c.Timeout <= 0 {\n\t\treturn fmt.Errorf(\"%w: TIMEOUT must be positive, got %s\", ErrInvalidConfig, c.Timeout)\n\t}\n\tif c.MaxConns < 1 {\n\t\treturn fmt.Errorf(\"%w: MAX_CONNS must be positive, got %d\", ErrInvalidConfig, c.MaxConns)\n\t}\n\treturn nil\n}\n",
+    "bug": "In Config.validate the port upper-bound check uses `c.Port > 65536` instead of `c.Port > 65535`, so the invalid port 65536 (one past the maximum 16-bit TCP port) wrongly passes validation.",
+    "keywords": [
+      "off-by-one",
+      "port upper bound",
+      "65535 is the maximum valid port",
+      "65536 should be rejected",
+      "wrong boundary comparison",
+      "invalid port passes validation"
+    ]
+  }
+}

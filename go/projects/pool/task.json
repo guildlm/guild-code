@@ -1,0 +1,23 @@
+{
+  "name": "pool",
+  "go_module": "github.com/guildlm/pool",
+  "description": "A thread-safe, generic object pool. New(factory) builds a Pool[T]; Get() reuses a returned value (LIFO) or calls the factory when empty; Put(v) returns a value for reuse; Len() reports idle count. Concurrency safety is provided by a sync.Mutex guarding the backing slice. Standard library only, go 1.23, gofmt-clean, and verified build+vet+test+race green.",
+  "test_files": [],
+  "maintain": {
+    "request": "Add a WithMaxIdle functional option to New so callers can cap how many idle values the pool retains. Once the pool already holds that many idle values, Put must discard the returned value instead of growing the pool, bounding memory use. A cap of 0 (or negative) means unbounded, preserving current behaviour. Add tests covering the cap, the boundary at exactly the cap, the unbounded default, and that retained values are still reused.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "pool.go",
+    "content": "// Package pool provides a thread-safe, generic object pool.\n//\n// A Pool reuses previously returned values to reduce allocation churn.\n// When no value is available, the pool creates a new one with the\n// factory function supplied to New. All methods are safe for concurrent\n// use by multiple goroutines.\npackage pool\n\nimport \"sync\"\n\n// Pool is a thread-safe pool of reusable values of type T.\n//\n// The zero value of Pool is not usable; create one with New.\ntype Pool[T any] struct {\n\tmu      sync.Mutex\n\tfactory func() T\n\titems   []T\n}\n\n// New returns a Pool that uses factory to create new values when the\n// pool is empty. factory must not be nil; New panics otherwise.\nfunc New[T any](factory func() T) *Pool[T] {\n\tif factory == nil {\n\t\tpanic(\"pool: New called with nil factory\")\n\t}\n\treturn &Pool[T]{factory: factory}\n}\n\n// Get returns a value from the pool, reusing a previously returned value\n// when one is available or creating a new one with the factory otherwise.\nfunc (p *Pool[T]) Get() T {\n\tp.mu.Lock()\n\tn := len(p.items)\n\tif n == 0 {\n\t\tp.mu.Unlock()\n\t\treturn p.factory()\n\t}\n\titem := p.items[n-1]\n\tvar zero T\n\tp.items[n-1] = zero\n\tp.items = p.items[:n-1]\n\tp.mu.Unlock()\n\treturn item\n}\n\n// Put returns a value to the pool so it can be reused by a later Get.\nfunc (p *Pool[T]) Put(item T) {\n\tp.items = append(p.items, item)\n}\n\n// Len reports the number of idle values currently held by the pool.\nfunc (p *Pool[T]) Len() int {\n\tp.mu.Lock()\n\tn := len(p.items)\n\tp.mu.Unlock()\n\treturn n\n}\n",
+    "bug": "Put appends to the shared p.items slice without acquiring p.mu, so it races with concurrent Get and Put calls that read and mutate the same slice header and backing array.",
+    "keywords": [
+      "data race",
+      "put does not lock the mutex",
+      "append without holding p.mu",
+      "concurrent access to items slice",
+      "unsynchronized slice mutation",
+      "race detected by go test -race"
+    ]
+  }
+}

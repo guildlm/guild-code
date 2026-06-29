@@ -1,0 +1,25 @@
+{
+  "name": "ringbuffer",
+  "go_module": "github.com/guildlm/ringbuffer",
+  "description": "A fixed-capacity, generic ring (circular) buffer. Push appends and overwrites the oldest element once full; Pop removes the oldest (FIFO), Len reports the current count, and ToSlice returns the elements oldest-to-newest as a fresh copy. Stdlib only, go 1.23, generic over any element type. Verified: gofmt-clean, go build/vet/test all green.",
+  "test_files": [
+    "ringbuffer_test.go"
+  ],
+  "maintain": {
+    "request": "Add a non-destructive Peek() (T, error) method that returns the oldest element without removing it (returning ErrEmpty when empty), plus a Full() bool helper that reports whether the next Push will overwrite the oldest element. Include table-driven tests for both.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "ringbuffer.go",
+    "content": "// Package ringbuffer provides a fixed-capacity ring (circular) buffer.\n//\n// When the buffer is full, pushing a new element overwrites the oldest\n// element, keeping only the most recent `capacity` items.\npackage ringbuffer\n\nimport \"errors\"\n\n// ErrEmpty is returned by Pop when the buffer contains no elements.\nvar ErrEmpty = errors.New(\"ringbuffer: buffer is empty\")\n\n// RingBuffer is a fixed-capacity FIFO buffer. The zero value is not usable;\n// construct one with New.\ntype RingBuffer[T any] struct {\n\tbuf   []T\n\thead  int // index of the oldest element\n\tcount int // number of elements currently stored\n}\n\n// New returns a RingBuffer that can hold up to capacity elements.\n// It panics if capacity is not positive, since a non-positive capacity\n// cannot store anything and almost always indicates a programming error.\nfunc New[T any](capacity int) *RingBuffer[T] {\n\tif capacity <= 0 {\n\t\tpanic(\"ringbuffer: capacity must be positive\")\n\t}\n\treturn &RingBuffer[T]{buf: make([]T, capacity)}\n}\n\n// Cap returns the maximum number of elements the buffer can hold.\nfunc (r *RingBuffer[T]) Cap() int { return len(r.buf) }\n\n// Len returns the number of elements currently stored.\nfunc (r *RingBuffer[T]) Len() int { return r.count }\n\n// Push appends v to the buffer. If the buffer is full, the oldest element\n// is overwritten and discarded.\nfunc (r *RingBuffer[T]) Push(v T) {\n\ttail := (r.head + r.count) % len(r.buf)\n\tr.buf[tail] = v\n\tif r.count == len(r.buf)-1 {\n\t\t// Full: overwrite oldest, advance head.\n\t\tr.head = (r.head + 1) % len(r.buf)\n\t} else {\n\t\tr.count++\n\t}\n}\n\n// Pop removes and returns the oldest element. It returns ErrEmpty if the\n// buffer is empty.\nfunc (r *RingBuffer[T]) Pop() (T, error) {\n\tvar zero T\n\tif r.count == 0 {\n\t\treturn zero, ErrEmpty\n\t}\n\tv := r.buf[r.head]\n\tr.buf[r.head] = zero // release reference for GC\n\tr.head = (r.head + 1) % len(r.buf)\n\tr.count--\n\treturn v, nil\n}\n\n// ToSlice returns the buffer's elements in logical order, from oldest to\n// newest. The returned slice is a fresh copy and does not alias internal\n// storage.\nfunc (r *RingBuffer[T]) ToSlice() []T {\n\tout := make([]T, r.count)\n\tfor i := 0; i < r.count; i++ {\n\t\tout[i] = r.buf[(r.head+i)%len(r.buf)]\n\t}\n\treturn out\n}\n",
+    "bug": "The Push full-check uses the wrong boundary, comparing r.count to len(r.buf)-1 instead of len(r.buf), so the buffer starts overwriting (and advancing head) one element too early and silently drops an item before it is actually full.",
+    "keywords": [
+      "off-by-one in push full condition",
+      "compares count to len(r.buf)-1 instead of len(r.buf)",
+      "premature overwrite advances head too early",
+      "buffer never holds full capacity",
+      "drops the oldest element before full",
+      "wrong boundary check"
+    ]
+  }
+}

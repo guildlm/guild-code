@@ -1,0 +1,25 @@
+{
+  "name": "bounded-resource-pool",
+  "go_module": "guildlm.dev/pool",
+  "description": "A standard-library-only, generic semaphore-based bounded resource pool. Package \"pool\" provides two types: Semaphore, a counting semaphore built on the classic chan-struct{}-as-semaphore idiom (blocking Acquire, non-blocking TryAcquire, Release, Len, Cap, panics on non-positive capacity), and Pool[T any], a generic fixed-capacity resource pool backed by a buffered channel that doubles as the semaphore (Acquire blocks until a resource frees, TryAcquire is the non-blocking variant, Release returns a resource, Available/Cap report state, New returns ErrEmptyPool when seeded with no resources). Table-driven tests cover empty-pool validation, TryAcquire exhaustion and recovery, acquire/release round-trips, blocking-until-release semantics, semaphore capacity bounds, panic-on-bad-capacity, and a concurrency invariant test that asserts holders never exceed capacity. Verified green with gofmt -l, go build ./..., go vet ./..., go test ./..., and go test -race ./... using go1.25.3 against the go 1.23 module.",
+  "test_files": [
+    "pool_test.go"
+  ],
+  "maintain": {
+    "request": "Add an AcquireContext(ctx context.Context) (T, error) method to Pool so callers can perform a context-bounded blocking checkout: it returns a resource when one becomes free, or the zero value and ctx.Err() if the context is cancelled or its deadline expires first (so a slot is never consumed on failure).",
+    "verified_green": true
+  },
+  "review": {
+    "path": "pool.go",
+    "content": "package pool\n\nimport \"errors\"\n\n// ErrEmptyPool is returned by New when no resources are supplied.\nvar ErrEmptyPool = errors.New(\"pool: at least one resource is required\")\n\n// Pool is a bounded, generic resource pool. It hands out a fixed set of\n// pre-created resources of type T and bounds concurrent checkouts to that\n// fixed capacity using a buffered channel as a semaphore. Acquire blocks until\n// a resource is free; TryAcquire is the non-blocking variant.\n//\n// The zero value is not usable; create one with New. A Pool is safe for\n// concurrent use by multiple goroutines.\ntype Pool[T any] struct {\n\tfree chan T\n}\n\n// New returns a Pool seeded with the given resources. The pool capacity is\n// fixed at len(items). It returns ErrEmptyPool if no resources are supplied.\nfunc New[T any](items ...T) (*Pool[T], error) {\n\tif len(items) == 0 {\n\t\treturn nil, ErrEmptyPool\n\t}\n\tp := &Pool[T]{free: make(chan T, len(items)-1)}\n\tfor _, it := range items {\n\t\tp.free <- it\n\t}\n\treturn p, nil\n}\n\n// Acquire checks out a resource, blocking until one is available. Each\n// acquired resource must be returned with Release.\nfunc (p *Pool[T]) Acquire() T {\n\treturn <-p.free\n}\n\n// TryAcquire checks out a resource without blocking. It returns the resource\n// and true if one was available, or the zero value of T and false otherwise.\nfunc (p *Pool[T]) TryAcquire() (T, bool) {\n\tselect {\n\tcase it := <-p.free:\n\t\treturn it, true\n\tdefault:\n\t\tvar zero T\n\t\treturn zero, false\n\t}\n}\n\n// Release returns a resource to the pool so it can be acquired again. Only\n// resources obtained from Acquire or TryAcquire should be released; releasing\n// more resources than the pool's capacity blocks until a slot frees.\nfunc (p *Pool[T]) Release(item T) {\n\tp.free <- item\n}\n\n// Available reports the number of resources currently free for checkout.\nfunc (p *Pool[T]) Available() int {\n\treturn len(p.free)\n}\n\n// Cap reports the fixed capacity of the pool.\nfunc (p *Pool[T]) Cap() int {\n\treturn cap(p.free)\n}\n",
+    "bug": "New allocates the resource channel with capacity len(items)-1, so pre-filling the pool overflows the buffer and the final send blocks forever, deadlocking construction (an off-by-one buffer size).",
+    "keywords": [
+      "off-by-one buffer capacity",
+      "len(items)-1",
+      "deadlock filling the pool",
+      "blocking send on full channel",
+      "buffered channel too small",
+      "should be len(items)"
+    ]
+  }
+}
