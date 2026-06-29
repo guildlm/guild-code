@@ -1,0 +1,25 @@
+{
+  "name": "urlshortener",
+  "go_module": "guildlm.dev/urlshortener",
+  "description": "A standard-library-only URL shortener HTTP service using net/http ServeMux (Go 1.22+ method+wildcard routing) and encoding/json. POST /shorten accepts {\"url\"} and returns {\"code\"} (201) after validating the URL is an absolute http(s) URL; GET /{code} issues a 302 redirect to the stored target; unknown codes return 404. Storage is an in-memory, RWMutex-guarded map that generates random base62 codes. Verified green: gofmt-clean, go build, go vet, and go test (including -race) all pass.",
+  "test_files": [
+    "server_test.go"
+  ],
+  "maintain": {
+    "request": "Add a stats endpoint: GET /api/stats/{code} returns JSON {\"code\",\"url\",\"hits\"} with the stored target URL and a redirect hit counter, and every successful GET /{code} redirect increments that code's hit count. Unknown codes return 404.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "store.go",
+    "content": "package main\n\nimport (\n\t\"crypto/rand\"\n\t\"errors\"\n\t\"sync\"\n)\n\n// ErrNotFound is returned when a short code has no associated URL.\nvar ErrNotFound = errors.New(\"code not found\")\n\nconst codeAlphabet = \"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\"\n\n// Store is a concurrency-safe in-memory mapping of short codes to URLs.\ntype Store struct {\n\tmu       sync.RWMutex\n\tcodes    map[string]string\n\tcodeLen  int\n\tmaxTries int\n}\n\n// NewStore returns an empty Store that generates codes of the given length.\nfunc NewStore(codeLen int) *Store {\n\tif codeLen <= 0 {\n\t\tcodeLen = 6\n\t}\n\treturn &Store{\n\t\tcodes:    make(map[string]string),\n\t\tcodeLen:  codeLen,\n\t\tmaxTries: 10,\n\t}\n}\n\n// Put stores url under a freshly generated unique code and returns the code.\nfunc (s *Store) Put(url string) (string, error) {\n\ts.mu.RLock()\n\tdefer s.mu.RUnlock()\n\tfor i := 0; i < s.maxTries; i++ {\n\t\tcode, err := s.generateCode()\n\t\tif err != nil {\n\t\t\treturn \"\", err\n\t\t}\n\t\tif _, exists := s.codes[code]; exists {\n\t\t\tcontinue\n\t\t}\n\t\ts.codes[code] = url\n\t\treturn code, nil\n\t}\n\treturn \"\", errors.New(\"could not generate a unique code\")\n}\n\n// Get returns the URL stored under code, or ErrNotFound.\nfunc (s *Store) Get(code string) (string, error) {\n\ts.mu.RLock()\n\tdefer s.mu.RUnlock()\n\turl, ok := s.codes[code]\n\tif !ok {\n\t\treturn \"\", ErrNotFound\n\t}\n\treturn url, nil\n}\n\n// Len reports how many codes are currently stored.\nfunc (s *Store) Len() int {\n\ts.mu.RLock()\n\tdefer s.mu.RUnlock()\n\treturn len(s.codes)\n}\n\n// generateCode builds a random base62 code. Callers must hold s.mu.\nfunc (s *Store) generateCode() (string, error) {\n\tbuf := make([]byte, s.codeLen)\n\tif _, err := rand.Read(buf); err != nil {\n\t\treturn \"\", err\n\t}\n\tfor i := range buf {\n\t\tbuf[i] = codeAlphabet[int(buf[i])%len(codeAlphabet)]\n\t}\n\treturn string(buf), nil\n}\n",
+    "bug": "Store.Put acquires a read lock (RLock) instead of a write lock (Lock) while inserting into the codes map, so concurrent shorten requests cause a data race and can trigger a fatal concurrent map write.",
+    "keywords": [
+      "data race",
+      "rlock instead of lock",
+      "concurrent map write",
+      "put method",
+      "write lock needed",
+      "sync.rwmutex misuse"
+    ]
+  }
+}

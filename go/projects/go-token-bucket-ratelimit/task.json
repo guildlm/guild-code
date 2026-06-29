@@ -1,0 +1,25 @@
+{
+  "name": "go-token-bucket-ratelimit",
+  "go_module": "guildlm.dev/ratelimit",
+  "description": "A standard-library-only token-bucket rate limiter (concurrency-safe Bucket with injectable clock, capacity + refill-rate, Allow/AllowN/Tokens) plus an HTTP Limiter that maintains one bucket per client IP and provides middleware that responds 429 Too Many Requests (with Retry-After) once a caller exceeds its rate. Verified green with go build, go vet, go test, and go test -race on go1.25.3 (module pinned to go 1.23).",
+  "test_files": [
+    "ratelimit_test.go"
+  ],
+  "maintain": {
+    "request": "Surface rate-limit budget to clients: have the middleware emit standard X-RateLimit-Limit and X-RateLimit-Remaining response headers on every response (success and 429), and add a Limiter.Remaining(r) method that returns the whole tokens left for a request's key without consuming one.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "bucket.go",
+    "content": "// Package ratelimit provides a concurrency-safe token-bucket rate limiter\n// and an HTTP middleware that responds with 429 Too Many Requests when a\n// caller exceeds its configured rate.\npackage ratelimit\n\nimport (\n\t\"sync\"\n\t\"time\"\n)\n\n// Bucket is a token-bucket rate limiter. Tokens accrue at refillRate per\n// second up to capacity. A request consumes tokens; when none are available\n// the request is denied. Bucket is safe for concurrent use.\ntype Bucket struct {\n\tmu         sync.Mutex\n\tcapacity   float64\n\ttokens     float64\n\trefillRate float64 // tokens added per second\n\tlast       time.Time\n\n\t// now returns the current time. It is a field so tests can inject a\n\t// deterministic clock; it defaults to time.Now.\n\tnow func() time.Time\n}\n\n// NewBucket returns a Bucket that holds up to capacity tokens and refills at\n// refillRate tokens per second. The bucket starts full. capacity is clamped to\n// a minimum of 0 and refillRate to a minimum of 0.\nfunc NewBucket(capacity int, refillRate float64) *Bucket {\n\tcap := float64(capacity)\n\tif cap < 0 {\n\t\tcap = 0\n\t}\n\tif refillRate < 0 {\n\t\trefillRate = 0\n\t}\n\treturn &Bucket{\n\t\tcapacity:   cap,\n\t\ttokens:     cap,\n\t\trefillRate: refillRate,\n\t\tlast:       time.Now(),\n\t\tnow:        time.Now,\n\t}\n}\n\n// refill adds tokens accrued since the last update. The caller must hold mu.\nfunc (b *Bucket) refill() {\n\tnow := b.now()\n\telapsed := now.Sub(b.last).Seconds()\n\tif elapsed <= 0 {\n\t\treturn\n\t}\n\tb.tokens += elapsed * b.refillRate\n\tif b.tokens > b.capacity {\n\t\tb.tokens = b.capacity\n\t}\n\tb.last = now\n}\n\n// Allow reports whether a single token is available, consuming it if so.\nfunc (b *Bucket) Allow() bool {\n\treturn b.AllowN(1)\n}\n\n// AllowN reports whether n tokens are available, consuming them if so.\n// A non-positive n is always allowed and consumes nothing.\nfunc (b *Bucket) AllowN(n int) bool {\n\tif n <= 0 {\n\t\treturn true\n\t}\n\tneed := float64(n)\n\n\tb.mu.Lock()\n\tdefer b.mu.Unlock()\n\n\tb.refill()\n\tif b.tokens > need {\n\t\tb.tokens -= need\n\t\treturn true\n\t}\n\treturn false\n}\n\n// Tokens returns the number of tokens currently available after accounting for\n// refill. It is primarily useful for tests and introspection.\nfunc (b *Bucket) Tokens() float64 {\n\tb.mu.Lock()\n\tdefer b.mu.Unlock()\n\tb.refill()\n\treturn b.tokens\n}\n",
+    "bug": "In AllowN the availability check uses a strict greater-than (`b.tokens > need`) instead of `>=`, an off-by-one that wrongly denies a request that would exactly exhaust the available tokens (e.g. AllowN(5) on a full bucket of capacity 5 returns false).",
+    "keywords": [
+      "off-by-one",
+      "allown availability check",
+      "should be >= not >",
+      "strict greater-than",
+      "exact tokens wrongly denied",
+      "boundary equal case"
+    ]
+  }
+}

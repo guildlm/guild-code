@@ -1,0 +1,24 @@
+{
+  "name": "ttlcache",
+  "go_module": "guildlm.dev/ttlcache",
+  "description": "A standard-library-only, concurrency-safe TTL key-value cache. Set(k,v,ttl) stores a value with a time-to-live; Get(k) returns (value, ok) and reports ok==false for missing or expired entries, deleting expired entries lazily on read. A sync.Mutex guards a map[string]item; expiry uses time.Time deadlines (ttl<=0 means never expire). The clock is an injectable field so tests are deterministic without real sleeps. Verified green with gofmt, go build, go vet, go test, and go test -race on Go 1.25.3 against a `go 1.23` module.",
+  "test_files": [
+    "cache_test.go"
+  ],
+  "maintain": {
+    "request": "Lazy expiry only reclaims memory for keys that are read again, so keys that are written once and never read leak forever. Add a DeleteExpired() int method that proactively sweeps and removes every expired entry and returns the number of entries it removed, so callers can run it periodically to bound memory.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "cache.go",
+    "content": "// Package ttlcache provides a small, concurrency-safe key-value cache where\n// every entry carries a time-to-live (TTL). Expired entries are purged lazily\n// the first time they are read after their deadline has passed.\npackage ttlcache\n\nimport (\n\t\"sync\"\n\t\"time\"\n)\n\n// item is a single stored value together with its expiry deadline. A zero\n// expireAt means the entry never expires.\ntype item struct {\n\tvalue    any\n\texpireAt time.Time\n}\n\n// Cache is a concurrency-safe TTL key-value store. The zero value is not\n// usable; obtain a Cache with New.\ntype Cache struct {\n\tmu    sync.Mutex\n\titems map[string]item\n\t// now is the clock used for expiry decisions. It is a field so tests can\n\t// inject a deterministic clock; production code uses time.Now.\n\tnow func() time.Time\n}\n\n// New returns an empty Cache ready for concurrent use.\nfunc New() *Cache {\n\treturn &Cache{\n\t\titems: make(map[string]item),\n\t\tnow:   time.Now,\n\t}\n}\n\n// Set stores value under key, expiring it after ttl. A ttl of zero or less\n// stores the entry without an expiry deadline (it lives until overwritten or\n// deleted).\nfunc (c *Cache) Set(key string, value any, ttl time.Duration) {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\n\tit := item{value: value}\n\tif ttl > 0 {\n\t\tit.expireAt = c.now().Add(ttl)\n\t}\n\tc.items[key] = it\n}\n\n// Get returns the value stored under key and whether it is present and not yet\n// expired. An expired entry is deleted as a side effect and reported as absent\n// (ok == false).\nfunc (c *Cache) Get(key string) (any, bool) {\n\tit, ok := c.items[key]\n\tif !ok {\n\t\treturn nil, false\n\t}\n\tif c.expired(it) {\n\t\tdelete(c.items, key)\n\t\treturn nil, false\n\t}\n\treturn it.value, true\n}\n\n// Delete removes key from the cache. Deleting an absent key is a no-op.\nfunc (c *Cache) Delete(key string) {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\tdelete(c.items, key)\n}\n\n// Len reports the number of entries that are currently present and unexpired.\n// Expired-but-not-yet-purged entries are not counted, but Len does not delete\n// them; use Get (or a future sweep) to reclaim them.\nfunc (c *Cache) Len() int {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\n\tn := 0\n\tfor _, it := range c.items {\n\t\tif !c.expired(it) {\n\t\t\tn++\n\t\t}\n\t}\n\treturn n\n}\n\n// DeleteExpired purges every entry whose deadline has passed and returns the\n// number of entries removed. Lazy expiry on Get only reclaims keys that are\n// read again, so a periodic call to DeleteExpired bounds memory for keys that\n// are written once and never read.\nfunc (c *Cache) DeleteExpired() int {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\n\tremoved := 0\n\tfor key, it := range c.items {\n\t\tif c.expired(it) {\n\t\t\tdelete(c.items, key)\n\t\t\tremoved++\n\t\t}\n\t}\n\treturn removed\n}\n\n// expired reports whether it has passed its expiry deadline. Entries with a\n// zero deadline never expire. The caller must hold c.mu.\nfunc (c *Cache) expired(it item) bool {\n\treturn !it.expireAt.IsZero() && !c.now().Before(it.expireAt)\n}\n",
+    "bug": "Get no longer acquires c.mu, so it reads from (and deletes expired entries out of) the shared items map without synchronization, creating a data race with concurrent Set/Get/DeleteExpired calls.",
+    "keywords": [
+      "data race",
+      "get does not acquire the mutex",
+      "missing c.mu.lock in get",
+      "concurrent map read and write",
+      "delete from map without holding the lock"
+    ]
+  }
+}

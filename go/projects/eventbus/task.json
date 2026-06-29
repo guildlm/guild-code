@@ -1,0 +1,25 @@
+{
+  "name": "eventbus",
+  "go_module": "guildlm.dev/eventbus",
+  "description": "A concurrency-safe, in-process topic-based publish/subscribe event bus built on channels and sync. Subscribe(topic) returns a receive-only <-chan Event, Publish(topic, event) fans the event out non-blockingly to every current subscriber of that topic, and Close() closes all subscriber channels and makes the bus idempotently inert. Standard library only, go 1.23, gofmt-clean. Verified GREEN: go build, go vet, go test, and go test -race all pass.",
+  "test_files": [
+    "eventbus_test.go"
+  ],
+  "maintain": {
+    "request": "Add an Unsubscribe(topic string, ch <-chan Event) bool method so a single subscriber can cancel its subscription without tearing down the whole bus. It must remove that one channel from the topic, close it so any range loop draining it terminates, leave the other subscribers on that topic intact, and report whether a matching subscription was actually found (returning false for unknown channels or on an already-closed bus).",
+    "verified_green": true
+  },
+  "review": {
+    "path": "eventbus.go",
+    "content": "// Package eventbus provides a small, concurrency-safe, in-process\n// topic-based publish/subscribe event bus built on channels and the\n// sync package.\n//\n// A Bus fans each published Event out to every channel that is currently\n// subscribed to the Event's topic. Subscriber channels are buffered;\n// sends are non-blocking, so a slow subscriber whose buffer is full will\n// drop events rather than stall the publisher or other subscribers.\npackage eventbus\n\nimport \"sync\"\n\n// DefaultBuffer is the per-subscriber channel buffer size used by New.\nconst DefaultBuffer = 16\n\n// Event is an arbitrary value delivered to the subscribers of a topic.\ntype Event any\n\n// Bus is a concurrency-safe topic-based publish/subscribe event bus.\n//\n// The zero value is not usable; create a Bus with New or NewBuffered.\n// All methods are safe for concurrent use by multiple goroutines.\ntype Bus struct {\n\tmu     sync.RWMutex\n\tsubs   map[string][]chan Event\n\tbuffer int\n\tclosed bool\n}\n\n// New returns an empty Bus whose subscriber channels are buffered with\n// DefaultBuffer slots.\nfunc New() *Bus {\n\treturn NewBuffered(DefaultBuffer)\n}\n\n// NewBuffered returns an empty Bus whose subscriber channels are buffered\n// with the given number of slots. A negative size is treated as zero\n// (an unbuffered channel).\nfunc NewBuffered(buffer int) *Bus {\n\tif buffer < 0 {\n\t\tbuffer = 0\n\t}\n\treturn &Bus{\n\t\tsubs:   make(map[string][]chan Event),\n\t\tbuffer: buffer,\n\t}\n}\n\n// Subscribe registers a new subscriber for the given topic and returns a\n// receive-only channel on which the subscriber will receive published\n// events. Each call returns an independent channel, so the same topic may\n// have many subscribers.\n//\n// If the Bus is already closed, Subscribe returns an already-closed\n// channel so that a range over it terminates immediately.\nfunc (b *Bus) Subscribe(topic string) <-chan Event {\n\tch := make(chan Event, b.buffer)\n\n\tb.mu.Lock()\n\tdefer b.mu.Unlock()\n\n\tif b.closed {\n\t\tclose(ch)\n\t\treturn ch\n\t}\n\tb.subs[topic] = append(b.subs[topic], ch)\n\treturn ch\n}\n\n// Publish delivers event to every current subscriber of topic. Delivery\n// is non-blocking: if a subscriber's buffer is full, the event is dropped\n// for that subscriber. Publishing to a topic with no subscribers, or to a\n// closed Bus, is a no-op.\nfunc (b *Bus) Publish(topic string, event Event) {\n\tif b.closed {\n\t\treturn\n\t}\n\tfor _, ch := range b.subs[topic] {\n\t\tselect {\n\t\tcase ch <- event:\n\t\tdefault:\n\t\t}\n\t}\n}\n\n// Close closes every subscriber channel and marks the Bus as closed.\n// After Close returns, Publish is a no-op and Subscribe yields\n// already-closed channels. Close is idempotent: calling it more than once\n// is safe and has no further effect.\nfunc (b *Bus) Close() {\n\tb.mu.Lock()\n\tdefer b.mu.Unlock()\n\n\tif b.closed {\n\t\treturn\n\t}\n\tb.closed = true\n\tfor topic, chans := range b.subs {\n\t\tfor _, ch := range chans {\n\t\t\tclose(ch)\n\t\t}\n\t\tdelete(b.subs, topic)\n\t}\n}\n",
+    "bug": "Publish reads the shared subs map and sends on subscriber channels without acquiring b.mu (the RLock/RUnlock pair was dropped), creating a data race with Subscribe and Close that can corrupt the map and panic by sending on a channel Close is concurrently closing.",
+    "keywords": [
+      "data race",
+      "publish does not hold the lock",
+      "missing rlock/runlock",
+      "concurrent map read and write",
+      "send on closed channel",
+      "go test -race"
+    ]
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "csvagg",
+  "go_module": "guildlm.dev/csvagg",
+  "description": "A standard-library-only CSV parser and aggregator. Parse(r) reads CSV via encoding/csv treating the first record as a header, and GroupSum groups rows by a key column and sums the integers in a value column into a map[string]int, with explicit errors for missing columns, short rows, and non-integer values.",
+  "test_files": [
+    "csvagg_test.go"
+  ],
+  "maintain": {
+    "request": "Add a GroupMean feature: aggregate the average integer value per group, returning map[string]float64, plus an underlying GroupStats method that exposes both Sum and Count per group. It must reuse the existing parse and validation pipeline and share the same error semantics as GroupSum (missing columns, short rows, non-integer values). Refactor GroupSum so the short-row and value-parsing logic is shared rather than duplicated.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "csvagg.go",
+    "content": "// Package csvagg parses CSV data and aggregates integer values grouped by a\n// key column. It relies only on the Go standard library.\npackage csvagg\n\nimport (\n\t\"encoding/csv\"\n\t\"fmt\"\n\t\"io\"\n\t\"strconv\"\n\t\"strings\"\n)\n\n// Table holds parsed CSV data: a header row and the data rows beneath it.\ntype Table struct {\n\tHeader []string\n\tRows   [][]string\n}\n\n// Parse reads CSV data from r, treating the first record as the header.\n// It returns an error if the data is malformed or if no header is present.\nfunc Parse(r io.Reader) (*Table, error) {\n\treader := csv.NewReader(r)\n\trecords, err := reader.ReadAll()\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"csvagg: read: %w\", err)\n\t}\n\tif len(records) == 0 {\n\t\treturn nil, fmt.Errorf(\"csvagg: empty input: no header row\")\n\t}\n\treturn &Table{\n\t\tHeader: records[0],\n\t\tRows:   records[1:],\n\t}, nil\n}\n\n// columnIndex returns the zero-based position of name within the header.\n// Matching is exact and case-sensitive.\nfunc (t *Table) columnIndex(name string) (int, error) {\n\tfor i, h := range t.Header {\n\t\tif h == name {\n\t\t\treturn i, nil\n\t\t}\n\t}\n\treturn 0, fmt.Errorf(\"csvagg: column %q not found in header %v\", name, t.Header)\n}\n\n// GroupSum groups the table rows by the value in keyCol and sums the integer\n// values found in valCol for each group. The result maps each distinct key to\n// its accumulated sum.\n//\n// An error is returned if either column name is missing, if a row is too short\n// to contain the requested columns, or if a value cell is not a valid integer.\nfunc (t *Table) GroupSum(keyCol, valCol string) (map[string]int, error) {\n\tkeyIdx, err := t.columnIndex(keyCol)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalIdx, err := t.columnIndex(valCol)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\n\tvar sums map[string]int\n\tfor rowNum, row := range t.Rows {\n\t\tif keyIdx >= len(row) || valIdx >= len(row) {\n\t\t\treturn nil, fmt.Errorf(\"csvagg: row %d has %d fields, need at least %d\",\n\t\t\t\trowNum+1, len(row), max(keyIdx, valIdx)+1)\n\t\t}\n\t\tkey := row[keyIdx]\n\t\traw := strings.TrimSpace(row[valIdx])\n\t\tv, err := strconv.Atoi(raw)\n\t\tif err != nil {\n\t\t\treturn nil, fmt.Errorf(\"csvagg: row %d: value %q in column %q is not an integer: %w\",\n\t\t\t\trowNum+1, row[valIdx], valCol, err)\n\t\t}\n\t\tsums[key] += v\n\t}\n\treturn sums, nil\n}\n\n// GroupSum is a convenience wrapper that parses r and aggregates in one call.\nfunc GroupSum(r io.Reader, keyCol, valCol string) (map[string]int, error) {\n\tt, err := Parse(r)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn t.GroupSum(keyCol, valCol)\n}\n",
+    "bug": "In GroupSum the accumulator is declared as `var sums map[string]int` (a nil map) instead of `make(map[string]int)`, so the first `sums[key] += v` write panics with \"assignment to entry in nil map\" for any input that has at least one data row.",
+    "keywords": [
+      "nil map",
+      "assignment to entry in nil map",
+      "var sums instead of make(map[string]int)",
+      "groupsum panics at runtime",
+      "map not initialized before write"
+    ]
+  }
+}

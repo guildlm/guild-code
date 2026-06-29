@@ -1,0 +1,24 @@
+{
+  "name": "jobqueue",
+  "go_module": "guildlm.dev/jobqueue",
+  "description": "In-memory job queue with a fixed-size worker pool built on stdlib sync + channels. New starts N worker goroutines; Submit enqueues a Job (blocking while the buffer is full) under a read lock; Shutdown closes the channel under an exclusive write lock so workers drain every already-accepted job and the call blocks until they all return. The RWMutex pattern guarantees no send-on-closed-channel can ever occur. Shutdown is idempotent and the whole type is safe for concurrent use.",
+  "test_files": [
+    "queue_test.go"
+  ],
+  "maintain": {
+    "request": "Add backpressure and metrics to the queue: a non-blocking TrySubmit(job) method that enqueues immediately and returns a new ErrQueueFull error when the buffer has no free slot (instead of blocking like Submit), plus a Processed() int64 method reporting how many jobs have finished running so callers can observe throughput and confirm a drain completed.",
+    "verified_green": true
+  },
+  "review": {
+    "path": "queue.go",
+    "content": "package jobqueue\n\nimport (\n\t\"errors\"\n\t\"sync\"\n)\n\n// Job is a single unit of work executed by a worker goroutine.\ntype Job func()\n\nvar (\n\t// ErrClosed is returned by Submit after the queue has been shut down.\n\tErrClosed = errors.New(\"jobqueue: queue is closed\")\n\t// ErrNilJob is returned by Submit when the supplied job is nil.\n\tErrNilJob = errors.New(\"jobqueue: nil job\")\n)\n\n// Queue is an in-memory job queue served by a fixed-size worker pool.\n//\n// Submit enqueues work; the workers run it concurrently. Shutdown drains\n// the queue and blocks until every accepted job has finished.\ntype Queue struct {\n\tjobs chan Job\n\twg   sync.WaitGroup\n\n\tmu     sync.RWMutex // guards closed and the close of jobs\n\tclosed bool\n}\n\n// New starts a Queue with the given number of workers and channel buffer.\n//\n// workers is clamped to a minimum of 1 and buffer to a minimum of 0, so\n// callers never have to special-case degenerate inputs.\nfunc New(workers, buffer int) *Queue {\n\tif workers < 1 {\n\t\tworkers = 1\n\t}\n\tif buffer < 0 {\n\t\tbuffer = 0\n\t}\n\n\tq := &Queue{\n\t\tjobs: make(chan Job, buffer),\n\t}\n\n\tq.wg.Add(workers)\n\tfor i := 0; i < workers; i++ {\n\t\tgo q.worker()\n\t}\n\treturn q\n}\n\n// worker pulls jobs until the channel is closed and drained.\nfunc (q *Queue) worker() {\n\tdefer q.wg.Done()\n\tfor job := range q.jobs {\n\t\tjob()\n\t}\n}\n\n// Submit enqueues job for execution. It blocks while the buffer is full\n// and unblocks as soon as a worker is free. It returns ErrNilJob for a nil\n// job and ErrClosed once the queue has been shut down.\nfunc (q *Queue) Submit(job Job) error {\n\tif job == nil {\n\t\treturn ErrNilJob\n\t}\n\n\tif q.closed {\n\t\treturn ErrClosed\n\t}\n\tq.jobs <- job\n\treturn nil\n}\n\n// Shutdown stops accepting new work, lets the workers drain every job that\n// was already accepted, and blocks until they all return. It is safe to call\n// Shutdown more than once and from multiple goroutines.\nfunc (q *Queue) Shutdown() {\n\tq.mu.Lock()\n\tif q.closed {\n\t\tq.mu.Unlock()\n\t\tq.wg.Wait()\n\t\treturn\n\t}\n\tq.closed = true\n\tclose(q.jobs)\n\tq.mu.Unlock()\n\n\tq.wg.Wait()\n}\n",
+    "bug": "Submit reads q.closed and sends on the jobs channel without holding q.mu.RLock(), so a concurrent Shutdown can flip closed and close(q.jobs) mid-send, producing a data race on q.closed and a possible send-on-closed-channel panic.",
+    "keywords": [
+      "data race",
+      "missing read lock",
+      "send on closed channel",
+      "concurrent shutdown",
+      "panic"
+    ]
+  }
+}
