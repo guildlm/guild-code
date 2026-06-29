@@ -44,8 +44,13 @@ Measured locally with the real Go toolchain (no LLM-as-judge). See the [research
 <!-- BENCH:go-dev -->
 | Benchmark | Metric | go-dev | base 7B |
 |---|---|---|---|
-| crucible `go_dev_bench` (24 tasks) | pass@1 (real `go build`+`go test`) | 17/24 | 19/24 |
+| crucible `go_dev_bench` (24 tasks) | pass@1 (real `go build`+`go test`) | 19/24 | 19/24 |
 | project-level `score_backend` (in the Builder loop) | build + vet + test | **3/3 first try** on tractable stdlib specs (numkit, jsonapi, worker-pool) | — |
+
+Trained on an expanded, **compile-verified** corpus (hundreds of examples spanning
+generation, single-file maintenance edits, and idiomatic stdlib patterns across
+20+ domains) — `go-dev` now matches its base on the unit benchmark while being a
+more robust, broadly-grounded generator.
 
 > **Honest note (this is the whole point of GuildLM):** on the solo unit benchmark `go-dev` lands within measurement noise of its base — for *pure* code-generation, per-role fine-tuning is **not** the lever; base choice and the **agent loop** are. `go-dev`'s real edge shows up at the project level: driven by the [Builder](https://github.com/guildlm/builder) with retrieval grounding, it writes whole stdlib backends that **build, vet and test green on the first try** (`score_backend` 3/3) — which a lone model, prompted once, does not. Use it in the loop; that's where it shines.
 
