@@ -19,7 +19,10 @@ into two training signals:
    - `mined_dev.jsonl` — feature/refactor/perf commits → *"apply this change"*
      before→after edit pairs (go-dev).
    - `mined_bugfix.jsonl` — bug-fix commits → buggy→fixed pairs (bug-solving).
-   - (PR review comments → review data is a planned stage 5.)
+
+3. **PR review data** (`mined_review.jsonl`) — real human code-review feedback
+   mined from PR inline comments (code diff hunk → reviewer's comment), the
+   training signal for **go-review**.
 
 Both feed the next steps: **DAPT → role-SFT → the agent loop** (the Builder:
 retrieval + file-at-a-time edit + verify/repair), measured on `project_bench.py`.
@@ -32,6 +35,7 @@ retrieval + file-at-a-time edit + verify/repair), measured on `project_bench.py`
 | 2 | `clone_repos.py` | `repos.jsonl` | `repos/` (bounded-depth clones, gitignored) |
 | 3 | `build_dapt_corpus.py` | `repos/` | `go_dapt_mined.jsonl` ({text,source}) |
 | 4 | `mine_git_history.py` | `repos/` | `mined_dev.jsonl`, `mined_bugfix.jsonl`, `mined_commits.jsonl` |
+| 5 | `mine_pr_reviews.py` | GitHub API (`gh`) | `mined_review.jsonl` |
 
 ### 1. `select_repos.py`
 Queries the GitHub search API, **bucketed by star ranges** to beat the 1000-
@@ -61,6 +65,14 @@ subjects (merge/bump/deps/typo/release/version), keeps only real `.go`
 modifications within size bounds. Emits chat `{"messages":[...]}` examples in the
 same schema as the existing SFT corpora.
 
+### 5. `mine_pr_reviews.py`
+Reads the GitHub API (not the local clone — review comments live on PRs). For
+each repo, fetches inline PR review comments; each carries a `diff_hunk` (the
+code the reviewer saw), so it pairs (Go diff hunk → reviewer comment) into
+go-review examples. Drops bots, thread replies, non-`.go` paths, and trivial
+chatter (LGTM/nit/thanks/…). Emits `mined_review.jsonl` with the go-review
+system prompt.
+
 ## Quick start
 
 ```bash
@@ -83,7 +95,7 @@ demand and far too big to commit. The scripts, this README, and the small
 ## Next steps after a full run
 1. DAPT: `anvil mode:pretrain` on `go_dapt_mined.jsonl` (+ stdlib corpus) to
    deepen the 7B base.
-2. Role-SFT the deepened base on `mined_dev.jsonl` / `mined_bugfix.jsonl`
-   (+ existing role splits).
+2. Role-SFT the deepened base: go-dev on `mined_dev.jsonl` + `mined_bugfix.jsonl`,
+   go-review on `mined_review.jsonl` (+ existing role splits).
 3. Run the Builder agent loop and measure on `builder/project_bench.py`.
 4. Stay 7B → 14–15B max — the recipe is the lever, not size.

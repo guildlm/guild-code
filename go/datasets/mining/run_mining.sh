@@ -41,8 +41,12 @@ $PY clone_repos.py --repos "$REPOS_FILE" --depth "$DEPTH" --jobs "$JOBS" \
 echo "=== [3/4] build DAPT corpus ==="
 $PY build_dapt_corpus.py --merge-stdlib --sample 30
 
-echo "=== [4/4] mine git history (commits -> SFT) ==="
+echo "=== [4/5] mine git history (commits -> SFT) ==="
 $PY mine_git_history.py --max-commits "$MAX_COMMITS" --max-files "$MAX_FILES" \
     --sample 5
 
-echo "=== done. outputs: go_dapt_mined.jsonl, mined_dev.jsonl, mined_bugfix.jsonl ==="
+echo "=== [5/5] mine PR review comments (-> go-review SFT) ==="
+$PY mine_pr_reviews.py --repos "$REPOS_FILE" \
+    ${LIMIT_FLAG:+--limit-repos 12} --max-pages "${REVIEW_PAGES:-5}" --sample 5
+
+echo "=== done. outputs: go_dapt_mined.jsonl, mined_dev.jsonl, mined_bugfix.jsonl, mined_review.jsonl ==="

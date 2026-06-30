@@ -225,6 +225,7 @@ def main() -> int:
                 new += 1
             print(f"  {star_q:>18} license:{lic:<12} -> {len(items):4d} hits, "
                   f"+{new:3d} kept (total {len(kept)})")
+            time.sleep(2.5)  # search API is 30 req/min — pace between queries
             if args.max_repos and len(kept) >= args.max_repos:
                 kept = kept[: args.max_repos]
                 break
