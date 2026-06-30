@@ -37,14 +37,21 @@ fi
 OUT="$ADAPTERS_DIR/$NAME"
 mkdir -p "$OUT"
 
+# grad-checkpoint trades compute for memory — only worth it when memory is tight.
+# Off by default (M1 Max has headroom; saw peak ~11GB at seq 4096) for speed.
+# Set GUILDLM_GRAD_CKPT=1 to re-enable for very long sequences / OOM.
+# (scalar, not array — macOS bash 3.2 errors on empty "${arr[@]}" under set -u)
+GC_FLAG=""
+[[ "${GUILDLM_GRAD_CKPT:-0}" == "1" ]] && GC_FLAG="--grad-checkpoint"
+
 echo "Training '$NAME'  base=$BASE_MODEL"
 echo "  data=$DATA  iters=$ITERS layers=$LAYERS lr=$LR maxseq=$MAXSEQ batch=$BATCH"
-echo "  -> adapter: $OUT"
+echo "  grad-checkpoint=${GUILDLM_GRAD_CKPT:-0}  -> adapter: $OUT"
 
 exec "$VENV/bin/python" -m mlx_lm lora \
   --model "$BASE_MODEL" --train --data "$DATA" \
   --adapter-path "$OUT" \
   --fine-tune-type lora --num-layers "$LAYERS" \
   --iters "$ITERS" --batch-size "$BATCH" --learning-rate "$LR" \
-  --max-seq-length "$MAXSEQ" --grad-checkpoint \
+  --max-seq-length "$MAXSEQ" $GC_FLAG \
   --steps-per-report 25 --steps-per-eval 200 --save-every 200 --val-batches 20
