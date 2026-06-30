@@ -1,0 +1,14 @@
+{
+  "name": "go_dapt_mined_v1",
+  "documents": 1979,
+  "total_chars": 10518523,
+  "est_tokens": 2629630,
+  "include_tests": true,
+  "repos": 10,
+  "skipped": {
+    "gen": 107,
+    "dup": 15,
+    "size": 28,
+    "read": 0
+  }
+}

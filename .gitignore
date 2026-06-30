@@ -29,3 +29,15 @@ venv/
 
 # Continued-pretraining corpus (regenerated from $GOROOT/src; too big to commit)
 go/datasets/pretrain/go_corpus.jsonl
+
+# GitHub Go mining pipeline (go/datasets/mining): cloned repo cache + large
+# generated corpora are regenerated on demand and far too big to commit. The
+# scripts, README, and small *.sample.jsonl files ARE tracked.
+go/datasets/mining/repos/
+go/datasets/mining/repos.jsonl
+go/datasets/mining/repos.smoke.jsonl
+go/datasets/mining/go_dapt_mined.jsonl
+go/datasets/mining/mined_dev.jsonl
+go/datasets/mining/mined_bugfix.jsonl
+go/datasets/mining/mined_review.jsonl
+go/datasets/mining/mined_commits.jsonl
