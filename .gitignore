@@ -42,3 +42,4 @@ go/datasets/mining/mined_bugfix.jsonl
 go/datasets/mining/mined_review.jsonl
 go/datasets/mining/mined_commits.jsonl
 go/datasets/mining/*.log
+go/datasets/mining/go_dapt_core.jsonl
