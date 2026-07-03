@@ -41,6 +41,13 @@ def main() -> int:
     from mlx_lm import generate, load
 
     model, tokenizer = load(args.model, adapter_path=args.adapter)
+    # The mlx-community Qwen configs carry eos_token_id=<|endoftext|> only, so
+    # generation never stops at <|im_end|> — tuned adapters (which stop emitting
+    # <|endoftext|>) then ramble to max_tokens on every prompt. Register the
+    # chat EOS explicitly so stopping works for base AND adapters.
+    im_end = tokenizer.encode("<|im_end|>")
+    if len(im_end) == 1:
+        tokenizer.eos_token_ids.add(im_end[0])
     label = os.path.basename(args.adapter) if args.adapter else "BASE"
     tasks = [json.loads(l) for l in open(args.bench)][: args.n]
 
