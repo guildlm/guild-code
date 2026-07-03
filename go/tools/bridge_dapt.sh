@@ -18,8 +18,10 @@ REPO="${GUILDLM_REPO:-$HOME/Desktop/Personal/Dev/guildlm}"
 VENV="$REPO/.mlx-venv"
 PY="$VENV/bin/python"
 BASE="Qwen/Qwen2.5-Coder-7B-Instruct"
-MERGED="$REPO/.mlx-fused/go-dapt-7b-merged"
-OUT="$REPO/.mlx-fused/go-dapt-7b-4bit"
+# GUILDLM_DAPT_OUT lets successive checkpoints (300, 600, ...) live side by
+# side instead of overwriting the model an earlier SFT adapter was built on.
+OUT="${GUILDLM_DAPT_OUT:-$REPO/.mlx-fused/go-dapt-7b-4bit}"
+MERGED="$OUT-merged"
 
 [ -x "$PY" ] || { echo "no venv at $VENV"; exit 1; }
 "$PY" -c "import peft" 2>/dev/null || "$VENV/bin/pip" install -q peft
