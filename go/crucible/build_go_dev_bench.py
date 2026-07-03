@@ -173,6 +173,159 @@ TASKS = [
     ),
 ]
 
+# Bench v2 (2026-07-03): 24 HARDER tasks — concurrency, net/http, io, json,
+# generics, container/heap, errors.As — added because the original 24 saturate
+# near 19/24 for a good code base (±2 noise dominated every comparison). The
+# original ids are unchanged for continuity; v2 ids extend the same file.
+HARD_TASKS = [
+    (
+        "safe_counter",
+        "Write a Go type Counter with methods Inc() and Value() int that is safe for concurrent use (use sync.Mutex), in package sandbox.",
+        "package sandbox\n\nimport \"sync\"\n\ntype Counter struct {\n\tmu sync.Mutex\n\tn  int\n}\n\nfunc (c *Counter) Inc() {\n\tc.mu.Lock()\n\tc.n++\n\tc.mu.Unlock()\n}\n\nfunc (c *Counter) Value() int {\n\tc.mu.Lock()\n\tdefer c.mu.Unlock()\n\treturn c.n\n}\n",
+        "package sandbox\n\nimport (\n\t\"sync\"\n\t\"testing\"\n)\n\nfunc TestCounter(t *testing.T) {\n\tvar c Counter\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < 100; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tfor j := 0; j < 10; j++ {\n\t\t\t\tc.Inc()\n\t\t\t}\n\t\t}()\n\t}\n\twg.Wait()\n\tif c.Value() != 1000 {\n\t\tt.Fatalf(\"got %d want 1000\", c.Value())\n\t}\n}\n",
+    ),
+    (
+        "merge_channels",
+        "Write a Go function Merge(a, b <-chan int) <-chan int that fans-in both channels into one output channel and closes it when both inputs are closed, in package sandbox.",
+        "package sandbox\n\nimport \"sync\"\n\nfunc Merge(a, b <-chan int) <-chan int {\n\tout := make(chan int)\n\tvar wg sync.WaitGroup\n\tdrain := func(c <-chan int) {\n\t\tdefer wg.Done()\n\t\tfor v := range c {\n\t\t\tout <- v\n\t\t}\n\t}\n\twg.Add(2)\n\tgo drain(a)\n\tgo drain(b)\n\tgo func() {\n\t\twg.Wait()\n\t\tclose(out)\n\t}()\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"sort\"\n\t\"testing\"\n)\n\nfunc TestMerge(t *testing.T) {\n\ta := make(chan int)\n\tb := make(chan int)\n\tgo func() {\n\t\tfor _, v := range []int{1, 3, 5} {\n\t\t\ta <- v\n\t\t}\n\t\tclose(a)\n\t}()\n\tgo func() {\n\t\tfor _, v := range []int{2, 4} {\n\t\t\tb <- v\n\t\t}\n\t\tclose(b)\n\t}()\n\tvar got []int\n\tfor v := range Merge(a, b) {\n\t\tgot = append(got, v)\n\t}\n\tsort.Ints(got)\n\tif len(got) != 5 || got[0] != 1 || got[4] != 5 {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "http_sum_handler",
+        "Write a Go http.HandlerFunc SumHandler that reads JSON {\"a\": int, \"b\": int} from a POST body and responds with JSON {\"sum\": int} and status 200; malformed JSON gets status 400. Package sandbox.",
+        "package sandbox\n\nimport (\n\t\"encoding/json\"\n\t\"net/http\"\n)\n\nfunc SumHandler(w http.ResponseWriter, r *http.Request) {\n\tvar in struct {\n\t\tA int `json:\"a\"`\n\t\tB int `json:\"b\"`\n\t}\n\tif err := json.NewDecoder(r.Body).Decode(&in); err != nil {\n\t\thttp.Error(w, \"bad json\", http.StatusBadRequest)\n\t\treturn\n\t}\n\tw.Header().Set(\"Content-Type\", \"application/json\")\n\tjson.NewEncoder(w).Encode(map[string]int{\"sum\": in.A + in.B})\n}\n",
+        "package sandbox\n\nimport (\n\t\"encoding/json\"\n\t\"net/http\"\n\t\"net/http/httptest\"\n\t\"strings\"\n\t\"testing\"\n)\n\nfunc TestSumHandler(t *testing.T) {\n\trec := httptest.NewRecorder()\n\treq := httptest.NewRequest(http.MethodPost, \"/sum\", strings.NewReader(`{\"a\":2,\"b\":3}`))\n\tSumHandler(rec, req)\n\tif rec.Code != http.StatusOK {\n\t\tt.Fatalf(\"status %d\", rec.Code)\n\t}\n\tvar out map[string]int\n\tif err := json.NewDecoder(rec.Body).Decode(&out); err != nil || out[\"sum\"] != 5 {\n\t\tt.Fatalf(\"body %v err %v\", out, err)\n\t}\n\trec2 := httptest.NewRecorder()\n\tSumHandler(rec2, httptest.NewRequest(http.MethodPost, \"/sum\", strings.NewReader(\"{oops\")))\n\tif rec2.Code != http.StatusBadRequest {\n\t\tt.Fatalf(\"bad json status %d\", rec2.Code)\n\t}\n}\n",
+    ),
+    (
+        "line_count",
+        "Write a Go function CountLines(r io.Reader) (int, error) that counts lines using bufio.Scanner, in package sandbox.",
+        "package sandbox\n\nimport (\n\t\"bufio\"\n\t\"io\"\n)\n\nfunc CountLines(r io.Reader) (int, error) {\n\tsc := bufio.NewScanner(r)\n\tn := 0\n\tfor sc.Scan() {\n\t\tn++\n\t}\n\treturn n, sc.Err()\n}\n",
+        "package sandbox\n\nimport (\n\t\"strings\"\n\t\"testing\"\n)\n\nfunc TestCountLines(t *testing.T) {\n\tn, err := CountLines(strings.NewReader(\"a\\nb\\nc\"))\n\tif err != nil || n != 3 {\n\t\tt.Fatalf(\"got %d err %v\", n, err)\n\t}\n\tn, _ = CountLines(strings.NewReader(\"\"))\n\tif n != 0 {\n\t\tt.Fatalf(\"empty got %d\", n)\n\t}\n}\n",
+    ),
+    (
+        "top_k_words",
+        "Write a Go function TopK(s string, k int) []string returning the k most frequent whitespace-separated words, most frequent first, ties broken alphabetically, in package sandbox.",
+        "package sandbox\n\nimport (\n\t\"sort\"\n\t\"strings\"\n)\n\nfunc TopK(s string, k int) []string {\n\tfreq := map[string]int{}\n\tfor _, w := range strings.Fields(s) {\n\t\tfreq[w]++\n\t}\n\twords := make([]string, 0, len(freq))\n\tfor w := range freq {\n\t\twords = append(words, w)\n\t}\n\tsort.Slice(words, func(i, j int) bool {\n\t\tif freq[words[i]] != freq[words[j]] {\n\t\t\treturn freq[words[i]] > freq[words[j]]\n\t\t}\n\t\treturn words[i] < words[j]\n\t})\n\tif k > len(words) {\n\t\tk = len(words)\n\t}\n\treturn words[:k]\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestTopK(t *testing.T) {\n\tgot := TopK(\"b a b c a b\", 2)\n\tif !reflect.DeepEqual(got, []string{\"b\", \"a\"}) {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n\tgot = TopK(\"x y\", 5)\n\tif !reflect.DeepEqual(got, []string{\"x\", \"y\"}) {\n\t\tt.Fatalf(\"ties got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "sort_people",
+        "Write a Go function SortPeople(p []Person) that sorts by Age ascending then Name ascending, with type Person struct{ Name string; Age int }, in package sandbox.",
+        "package sandbox\n\nimport \"sort\"\n\ntype Person struct {\n\tName string\n\tAge  int\n}\n\nfunc SortPeople(p []Person) {\n\tsort.Slice(p, func(i, j int) bool {\n\t\tif p[i].Age != p[j].Age {\n\t\t\treturn p[i].Age < p[j].Age\n\t\t}\n\t\treturn p[i].Name < p[j].Name\n\t})\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestSortPeople(t *testing.T) {\n\tp := []Person{{\"b\", 30}, {\"a\", 30}, {\"c\", 20}}\n\tSortPeople(p)\n\twant := []Person{{\"c\", 20}, {\"a\", 30}, {\"b\", 30}}\n\tif !reflect.DeepEqual(p, want) {\n\t\tt.Fatalf(\"got %v\", p)\n\t}\n}\n",
+    ),
+    (
+        "camel_to_snake",
+        "Write a Go function CamelToSnake(s string) string converting camelCase to snake_case (an underscore before each upper-case letter, lower-cased), in package sandbox.",
+        "package sandbox\n\nimport (\n\t\"strings\"\n\t\"unicode\"\n)\n\nfunc CamelToSnake(s string) string {\n\tvar b strings.Builder\n\tfor i, r := range s {\n\t\tif unicode.IsUpper(r) {\n\t\t\tif i > 0 {\n\t\t\t\tb.WriteByte('_')\n\t\t\t}\n\t\t\tb.WriteRune(unicode.ToLower(r))\n\t\t} else {\n\t\t\tb.WriteRune(r)\n\t\t}\n\t}\n\treturn b.String()\n}\n",
+        "package sandbox\n\nimport \"testing\"\n\nfunc TestCamelToSnake(t *testing.T) {\n\tcases := map[string]string{\"fooBarBaz\": \"foo_bar_baz\", \"foo\": \"foo\", \"FooBar\": \"foo_bar\", \"\": \"\"}\n\tfor in, want := range cases {\n\t\tif got := CamelToSnake(in); got != want {\n\t\t\tt.Errorf(\"%q -> %q want %q\", in, got, want)\n\t\t}\n\t}\n}\n",
+    ),
+    (
+        "ring_buffer",
+        "Write a Go type Ring created with NewRing(cap int) with methods Push(v int) (evicting the oldest when full) and Items() []int (oldest to newest), in package sandbox.",
+        "package sandbox\n\ntype Ring struct {\n\tbuf []int\n\tcap int\n}\n\nfunc NewRing(cap int) *Ring {\n\treturn &Ring{cap: cap}\n}\n\nfunc (r *Ring) Push(v int) {\n\tr.buf = append(r.buf, v)\n\tif len(r.buf) > r.cap {\n\t\tr.buf = r.buf[1:]\n\t}\n}\n\nfunc (r *Ring) Items() []int {\n\tout := make([]int, len(r.buf))\n\tcopy(out, r.buf)\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestRing(t *testing.T) {\n\tr := NewRing(3)\n\tfor _, v := range []int{1, 2, 3, 4, 5} {\n\t\tr.Push(v)\n\t}\n\tif got := r.Items(); !reflect.DeepEqual(got, []int{3, 4, 5}) {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "errors_as_code",
+        "Write a Go error type *NotFoundError with field Code int and method Error() string, plus func CodeOf(err error) int that returns the Code from anywhere in a wrapped chain via errors.As, or -1. Package sandbox.",
+        "package sandbox\n\nimport (\n\t\"errors\"\n\t\"fmt\"\n)\n\ntype NotFoundError struct {\n\tCode int\n}\n\nfunc (e *NotFoundError) Error() string {\n\treturn fmt.Sprintf(\"not found (code %d)\", e.Code)\n}\n\nfunc CodeOf(err error) int {\n\tvar nf *NotFoundError\n\tif errors.As(err, &nf) {\n\t\treturn nf.Code\n\t}\n\treturn -1\n}\n",
+        "package sandbox\n\nimport (\n\t\"fmt\"\n\t\"testing\"\n)\n\nfunc TestCodeOf(t *testing.T) {\n\terr := fmt.Errorf(\"outer: %w\", fmt.Errorf(\"mid: %w\", &NotFoundError{Code: 404}))\n\tif got := CodeOf(err); got != 404 {\n\t\tt.Fatalf(\"got %d\", got)\n\t}\n\tif got := CodeOf(fmt.Errorf(\"plain\")); got != -1 {\n\t\tt.Fatalf(\"plain got %d\", got)\n\t}\n}\n",
+    ),
+    (
+        "group_anagrams",
+        "Write a Go function GroupAnagrams(words []string) [][]string grouping anagrams together; sort words within each group and groups by their first word. Package sandbox.",
+        "package sandbox\n\nimport \"sort\"\n\nfunc GroupAnagrams(words []string) [][]string {\n\tgroups := map[string][]string{}\n\tfor _, w := range words {\n\t\tb := []byte(w)\n\t\tsort.Slice(b, func(i, j int) bool { return b[i] < b[j] })\n\t\tk := string(b)\n\t\tgroups[k] = append(groups[k], w)\n\t}\n\tout := make([][]string, 0, len(groups))\n\tfor _, g := range groups {\n\t\tsort.Strings(g)\n\t\tout = append(out, g)\n\t}\n\tsort.Slice(out, func(i, j int) bool { return out[i][0] < out[j][0] })\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestGroupAnagrams(t *testing.T) {\n\tgot := GroupAnagrams([]string{\"eat\", \"tea\", \"tan\", \"ate\", \"nat\", \"bat\"})\n\twant := [][]string{{\"ate\", \"eat\", \"tea\"}, {\"bat\"}, {\"nat\", \"tan\"}}\n\tif !reflect.DeepEqual(got, want) {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "lower_bound",
+        "Write a Go function LowerBound(s []int, target int) int returning the index of the FIRST element >= target in sorted s (len(s) if none), using binary search, in package sandbox.",
+        "package sandbox\n\nfunc LowerBound(s []int, target int) int {\n\tlo, hi := 0, len(s)\n\tfor lo < hi {\n\t\tmid := (lo + hi) / 2\n\t\tif s[mid] < target {\n\t\t\tlo = mid + 1\n\t\t} else {\n\t\t\thi = mid\n\t\t}\n\t}\n\treturn lo\n}\n",
+        "package sandbox\n\nimport \"testing\"\n\nfunc TestLowerBound(t *testing.T) {\n\ts := []int{1, 3, 3, 5, 8}\n\tcases := map[int]int{0: 0, 1: 0, 3: 1, 4: 3, 8: 4, 9: 5}\n\tfor target, want := range cases {\n\t\tif got := LowerBound(s, target); got != want {\n\t\t\tt.Errorf(\"LowerBound(%d)=%d want %d\", target, got, want)\n\t\t}\n\t}\n}\n",
+    ),
+    (
+        "rotate_matrix",
+        "Write a Go function Rotate(m [][]int) that rotates an NxN matrix 90 degrees clockwise IN PLACE, in package sandbox.",
+        "package sandbox\n\nfunc Rotate(m [][]int) {\n\tn := len(m)\n\tfor i := 0; i < n; i++ {\n\t\tfor j := i + 1; j < n; j++ {\n\t\t\tm[i][j], m[j][i] = m[j][i], m[i][j]\n\t\t}\n\t}\n\tfor i := 0; i < n; i++ {\n\t\tfor l, r := 0, n-1; l < r; l, r = l+1, r-1 {\n\t\t\tm[i][l], m[i][r] = m[i][r], m[i][l]\n\t\t}\n\t}\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestRotate(t *testing.T) {\n\tm := [][]int{{1, 2}, {3, 4}}\n\tRotate(m)\n\tif !reflect.DeepEqual(m, [][]int{{3, 1}, {4, 2}}) {\n\t\tt.Fatalf(\"got %v\", m)\n\t}\n}\n",
+    ),
+    (
+        "parse_query",
+        "Write a Go function ParseQuery(q string) map[string][]string parsing \"a=1&b=2&a=3\" into {\"a\":[\"1\",\"3\"],\"b\":[\"2\"]} (no URL-decoding; skip empty pairs and pairs without '='), in package sandbox.",
+        "package sandbox\n\nimport \"strings\"\n\nfunc ParseQuery(q string) map[string][]string {\n\tout := map[string][]string{}\n\tfor _, pair := range strings.Split(q, \"&\") {\n\t\tif pair == \"\" {\n\t\t\tcontinue\n\t\t}\n\t\tk, v, ok := strings.Cut(pair, \"=\")\n\t\tif !ok {\n\t\t\tcontinue\n\t\t}\n\t\tout[k] = append(out[k], v)\n\t}\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestParseQuery(t *testing.T) {\n\tgot := ParseQuery(\"a=1&b=2&a=3&&junk\")\n\twant := map[string][]string{\"a\": {\"1\", \"3\"}, \"b\": {\"2\"}}\n\tif !reflect.DeepEqual(got, want) {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "once_config",
+        "Write a Go function GetConfig() *Config that lazily creates a single shared Config exactly once using sync.Once, with type Config struct{ Loaded bool }, in package sandbox.",
+        "package sandbox\n\nimport \"sync\"\n\ntype Config struct {\n\tLoaded bool\n}\n\nvar (\n\tcfgOnce sync.Once\n\tcfg     *Config\n)\n\nfunc GetConfig() *Config {\n\tcfgOnce.Do(func() {\n\t\tcfg = &Config{Loaded: true}\n\t})\n\treturn cfg\n}\n",
+        "package sandbox\n\nimport (\n\t\"sync\"\n\t\"testing\"\n)\n\nfunc TestGetConfig(t *testing.T) {\n\tvar wg sync.WaitGroup\n\tptrs := make([]*Config, 50)\n\tfor i := 0; i < 50; i++ {\n\t\twg.Add(1)\n\t\tgo func(i int) {\n\t\t\tdefer wg.Done()\n\t\t\tptrs[i] = GetConfig()\n\t\t}(i)\n\t}\n\twg.Wait()\n\tfor _, p := range ptrs {\n\t\tif p != ptrs[0] || !p.Loaded {\n\t\t\tt.Fatal(\"not a single shared instance\")\n\t\t}\n\t}\n}\n",
+    ),
+    (
+        "worker_pool_sum",
+        "Write a Go function ParallelSum(nums []int, workers int) int summing nums using exactly `workers` goroutines reading from a shared jobs channel, in package sandbox.",
+        "package sandbox\n\nimport \"sync\"\n\nfunc ParallelSum(nums []int, workers int) int {\n\tjobs := make(chan int)\n\tvar mu sync.Mutex\n\ttotal := 0\n\tvar wg sync.WaitGroup\n\tfor i := 0; i < workers; i++ {\n\t\twg.Add(1)\n\t\tgo func() {\n\t\t\tdefer wg.Done()\n\t\t\tfor v := range jobs {\n\t\t\t\tmu.Lock()\n\t\t\t\ttotal += v\n\t\t\t\tmu.Unlock()\n\t\t\t}\n\t\t}()\n\t}\n\tfor _, v := range nums {\n\t\tjobs <- v\n\t}\n\tclose(jobs)\n\twg.Wait()\n\treturn total\n}\n",
+        "package sandbox\n\nimport \"testing\"\n\nfunc TestParallelSum(t *testing.T) {\n\tnums := make([]int, 100)\n\twant := 0\n\tfor i := range nums {\n\t\tnums[i] = i\n\t\twant += i\n\t}\n\tif got := ParallelSum(nums, 4); got != want {\n\t\tt.Fatalf(\"got %d want %d\", got, want)\n\t}\n}\n",
+    ),
+    (
+        "status_stringer",
+        "Write a Go type Status int with constants Pending=0, Active=1, Done=2 and a String() string method returning \"pending\", \"active\", \"done\" (or \"unknown\"), in package sandbox.",
+        "package sandbox\n\ntype Status int\n\nconst (\n\tPending Status = iota\n\tActive\n\tDone\n)\n\nfunc (s Status) String() string {\n\tswitch s {\n\tcase Pending:\n\t\treturn \"pending\"\n\tcase Active:\n\t\treturn \"active\"\n\tcase Done:\n\t\treturn \"done\"\n\tdefault:\n\t\treturn \"unknown\"\n\t}\n}\n",
+        "package sandbox\n\nimport (\n\t\"fmt\"\n\t\"testing\"\n)\n\nfunc TestStatusString(t *testing.T) {\n\tif fmt.Sprint(Active) != \"active\" || fmt.Sprint(Status(9)) != \"unknown\" {\n\t\tt.Fatalf(\"got %v %v\", Active, Status(9))\n\t}\n}\n",
+    ),
+    (
+        "json_omitempty",
+        "Write a Go type User struct with fields Name string (json \"name\") and Email string (json \"email\", omitempty), plus func RenderUser(u User) (string, error) returning its compact JSON, in package sandbox.",
+        "package sandbox\n\nimport \"encoding/json\"\n\ntype User struct {\n\tName  string `json:\"name\"`\n\tEmail string `json:\"email,omitempty\"`\n}\n\nfunc RenderUser(u User) (string, error) {\n\tb, err := json.Marshal(u)\n\treturn string(b), err\n}\n",
+        "package sandbox\n\nimport \"testing\"\n\nfunc TestRenderUser(t *testing.T) {\n\ts, err := RenderUser(User{Name: \"ada\"})\n\tif err != nil || s != `{\"name\":\"ada\"}` {\n\t\tt.Fatalf(\"got %q err %v\", s, err)\n\t}\n\ts, _ = RenderUser(User{Name: \"ada\", Email: \"a@b.c\"})\n\tif s != `{\"name\":\"ada\",\"email\":\"a@b.c\"}` {\n\t\tt.Fatalf(\"got %q\", s)\n\t}\n}\n",
+    ),
+    (
+        "upper_reader",
+        "Write a Go type UpperReader wrapping an io.Reader so Read returns the same bytes upper-cased (ASCII), with constructor NewUpperReader(r io.Reader) *UpperReader, in package sandbox.",
+        "package sandbox\n\nimport \"io\"\n\ntype UpperReader struct {\n\tr io.Reader\n}\n\nfunc NewUpperReader(r io.Reader) *UpperReader {\n\treturn &UpperReader{r: r}\n}\n\nfunc (u *UpperReader) Read(p []byte) (int, error) {\n\tn, err := u.r.Read(p)\n\tfor i := 0; i < n; i++ {\n\t\tif p[i] >= 'a' && p[i] <= 'z' {\n\t\t\tp[i] -= 32\n\t\t}\n\t}\n\treturn n, err\n}\n",
+        "package sandbox\n\nimport (\n\t\"io\"\n\t\"strings\"\n\t\"testing\"\n)\n\nfunc TestUpperReader(t *testing.T) {\n\tb, err := io.ReadAll(NewUpperReader(strings.NewReader(\"Hello, Go!\")))\n\tif err != nil || string(b) != \"HELLO, GO!\" {\n\t\tt.Fatalf(\"got %q err %v\", b, err)\n\t}\n}\n",
+    ),
+    (
+        "min_heap",
+        "Write a Go min-heap of ints using container/heap: type IntHeap implementing heap.Interface, plus func PopAllSorted(vals []int) []int that heapifies and pops all values in ascending order. Package sandbox.",
+        "package sandbox\n\nimport \"container/heap\"\n\ntype IntHeap []int\n\nfunc (h IntHeap) Len() int            { return len(h) }\nfunc (h IntHeap) Less(i, j int) bool  { return h[i] < h[j] }\nfunc (h IntHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }\nfunc (h *IntHeap) Push(x interface{}) { *h = append(*h, x.(int)) }\nfunc (h *IntHeap) Pop() interface{} {\n\told := *h\n\tn := len(old)\n\tv := old[n-1]\n\t*h = old[:n-1]\n\treturn v\n}\n\nfunc PopAllSorted(vals []int) []int {\n\th := IntHeap(append([]int(nil), vals...))\n\theap.Init(&h)\n\tout := make([]int, 0, len(vals))\n\tfor h.Len() > 0 {\n\t\tout = append(out, heap.Pop(&h).(int))\n\t}\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestPopAllSorted(t *testing.T) {\n\tgot := PopAllSorted([]int{5, 1, 4, 2, 3})\n\tif !reflect.DeepEqual(got, []int{1, 2, 3, 4, 5}) {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "filter_generic",
+        "Write a generic Go function Filter[T any](s []T, keep func(T) bool) []T returning elements for which keep is true, preserving order, in package sandbox.",
+        "package sandbox\n\nfunc Filter[T any](s []T, keep func(T) bool) []T {\n\tout := make([]T, 0, len(s))\n\tfor _, v := range s {\n\t\tif keep(v) {\n\t\t\tout = append(out, v)\n\t\t}\n\t}\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"reflect\"\n\t\"testing\"\n)\n\nfunc TestFilter(t *testing.T) {\n\tgot := Filter([]int{1, 2, 3, 4}, func(v int) bool { return v%2 == 0 })\n\tif !reflect.DeepEqual(got, []int{2, 4}) {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n\tif got := Filter([]string{}, func(string) bool { return true }); len(got) != 0 {\n\t\tt.Fatalf(\"empty got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "truncate_hour",
+        "Write a Go function BucketByHour(ts []time.Time) map[time.Time]int counting timestamps per hour bucket (truncate each to the hour with Truncate), in package sandbox.",
+        "package sandbox\n\nimport \"time\"\n\nfunc BucketByHour(ts []time.Time) map[time.Time]int {\n\tout := map[time.Time]int{}\n\tfor _, t := range ts {\n\t\tout[t.Truncate(time.Hour)]++\n\t}\n\treturn out\n}\n",
+        "package sandbox\n\nimport (\n\t\"testing\"\n\t\"time\"\n)\n\nfunc TestBucketByHour(t *testing.T) {\n\tbase := time.Date(2024, 1, 2, 10, 0, 0, 0, time.UTC)\n\tts := []time.Time{base.Add(5 * time.Minute), base.Add(59 * time.Minute), base.Add(61 * time.Minute)}\n\tgot := BucketByHour(ts)\n\tif got[base] != 2 || got[base.Add(time.Hour)] != 1 {\n\t\tt.Fatalf(\"got %v\", got)\n\t}\n}\n",
+    ),
+    (
+        "ctx_cancel_worker",
+        "Write a Go function CountUntil(ctx context.Context, ch <-chan int) int that consumes ints from ch and returns how many it received when ctx is cancelled OR ch is closed, in package sandbox.",
+        "package sandbox\n\nimport \"context\"\n\nfunc CountUntil(ctx context.Context, ch <-chan int) int {\n\tn := 0\n\tfor {\n\t\tselect {\n\t\tcase <-ctx.Done():\n\t\t\treturn n\n\t\tcase _, ok := <-ch:\n\t\t\tif !ok {\n\t\t\t\treturn n\n\t\t\t}\n\t\t\tn++\n\t\t}\n\t}\n}\n",
+        "package sandbox\n\nimport (\n\t\"context\"\n\t\"testing\"\n)\n\nfunc TestCountUntil(t *testing.T) {\n\tch := make(chan int)\n\tgo func() {\n\t\tfor i := 0; i < 4; i++ {\n\t\t\tch <- i\n\t\t}\n\t\tclose(ch)\n\t}()\n\tif got := CountUntil(context.Background(), ch); got != 4 {\n\t\tt.Fatalf(\"closed got %d\", got)\n\t}\n\tctx, cancel := context.WithCancel(context.Background())\n\tcancel()\n\tif got := CountUntil(ctx, make(chan int)); got != 0 {\n\t\tt.Fatalf(\"cancelled got %d\", got)\n\t}\n}\n",
+    ),
+    (
+        "chunk_reader",
+        "Write a Go function ReadChunks(r io.Reader, size int) ([][]byte, error) reading r fully and splitting the bytes into chunks of at most `size`, in package sandbox.",
+        "package sandbox\n\nimport \"io\"\n\nfunc ReadChunks(r io.Reader, size int) ([][]byte, error) {\n\tdata, err := io.ReadAll(r)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvar out [][]byte\n\tfor len(data) > 0 {\n\t\tn := size\n\t\tif n > len(data) {\n\t\t\tn = len(data)\n\t\t}\n\t\tchunk := make([]byte, n)\n\t\tcopy(chunk, data[:n])\n\t\tout = append(out, chunk)\n\t\tdata = data[n:]\n\t}\n\treturn out, nil\n}\n",
+        "package sandbox\n\nimport (\n\t\"strings\"\n\t\"testing\"\n)\n\nfunc TestReadChunks(t *testing.T) {\n\tchunks, err := ReadChunks(strings.NewReader(\"abcdefg\"), 3)\n\tif err != nil || len(chunks) != 3 {\n\t\tt.Fatalf(\"got %d chunks err %v\", len(chunks), err)\n\t}\n\tif string(chunks[0]) != \"abc\" || string(chunks[2]) != \"g\" {\n\t\tt.Fatalf(\"got %q %q\", chunks[0], chunks[2])\n\t}\n}\n",
+    ),
+    (
+        "middleware_chain",
+        "Write a Go function Chain(h http.Handler, mws ...func(http.Handler) http.Handler) http.Handler applying middlewares so the FIRST one in the list is the OUTERMOST, in package sandbox.",
+        "package sandbox\n\nimport \"net/http\"\n\nfunc Chain(h http.Handler, mws ...func(http.Handler) http.Handler) http.Handler {\n\tfor i := len(mws) - 1; i >= 0; i-- {\n\t\th = mws[i](h)\n\t}\n\treturn h\n}\n",
+        "package sandbox\n\nimport (\n\t\"net/http\"\n\t\"net/http/httptest\"\n\t\"testing\"\n)\n\nfunc TestChain(t *testing.T) {\n\tvar order []string\n\tmw := func(name string) func(http.Handler) http.Handler {\n\t\treturn func(next http.Handler) http.Handler {\n\t\t\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\t\t\torder = append(order, name)\n\t\t\t\tnext.ServeHTTP(w, r)\n\t\t\t})\n\t\t}\n\t}\n\th := Chain(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\torder = append(order, \"handler\")\n\t}), mw(\"a\"), mw(\"b\"))\n\th.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, \"/\", nil))\n\tif len(order) != 3 || order[0] != \"a\" || order[1] != \"b\" || order[2] != \"handler\" {\n\t\tt.Fatalf(\"order %v\", order)\n\t}\n}\n",
+    ),
+]
+
+TASKS = TASKS + HARD_TASKS
+
 
 def verify(reference: str, test: str) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory() as d:
