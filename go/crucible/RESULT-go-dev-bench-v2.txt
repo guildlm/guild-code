@@ -135,3 +135,22 @@ the BASE to green — i.e. the ALGORITHM improved to the point model size stops 
 is exactly the thesis ("capability = model x ALGORITHM; a strong algorithm lets a small/untuned model
 punch up"). The specialist still helps by lowering the repair burden. (n=1 spec; a fuller A/B would
 sweep several multi-file specs and count fix-rounds as the metric, not just green.)
+
+=== FIX-ROUNDS A/B (sharper than green/unit-bench): 3 multi-file backends, gated Builder, 2026-07-19 ===
+How many fix-rounds each model needs to converge to green (specialist from teeth-session ab-logs,
+base freshly built into temp dirs, same specs, temp 0.1):
+  spec        files   specialist fix-rounds   base fix-rounds
+  tasks-api     8            0                     1
+  taskflow     14            1                     1
+  usersapi      8            0                     0
+  TOTAL                      1                     2
+Both models ship a GREEN backend on all three (independent build/vet/test green). The specialist
+needs marginally fewer repairs (1 vs 2 total), driven entirely by tasks-api; taskflow and usersapi
+are ties. So at the CURRENT algorithm strength (best-of-N + stdlib/redeclaration gates + fix-loop +
+retrieval), the untuned base and the mixed-SFT specialist are ROUGHLY EQUIVALENT on these backends —
+the ALGORITHM dominates, the model barely moves the needle. This is the strongest support yet for the
+core bet (capability = model x ALGORITHM: a strong-enough algorithm carries the untuned base to
+specialist parity) AND an honest QUALIFIER: at this algorithm strength the trained specialist adds
+little (a marginal fix-round reduction). The specialist's edge would likely show more on HARDER
+backends or with WEAKER gates; with the current strong loop, base ~ specialist. (n=3, small; the
+metric — count fix-rounds, not green — is the right one and worth a bigger sweep.)
