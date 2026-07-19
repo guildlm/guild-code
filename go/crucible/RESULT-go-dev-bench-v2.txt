@@ -1,0 +1,54 @@
+go_dev_bench v2 (48 harder tasks) — results, 2026-07-19 (autonomous session)
+
+SERVED specialist (go-dev-mixed-v4 via mlx_lm.server :8080, bench_compare.py, production path):
+  pass@1 = 39/48 (81%)
+  FAILED (9): reverse_runes, errors_wrap, title_case, rune_at, safe_counter,
+              merge_channels, camel_to_snake, status_stringer, ctx_cancel_worker, chunk_reader
+  Weakness clusters: rune/string ops (reverse/title/rune_at/camel), concurrency
+  (safe_counter/merge_channels/ctx_cancel_worker), io.Reader (chunk_reader), errors, Stringer.
+
+=== CLEAN A/B (same harness: mlx_bench.py, direct model load, 2026-07-19) ===
+BASE (untuned Qwen2.5-Coder-7B-Instruct-4bit):  pass@1 = 39/48
+go-dev-mixed-v4 (base + LoRA adapter):          pass@1 = 33/48   <-- REGRESSES by 6
+
+KEY FINDING: the go-dev-mixed-v4 LoRA specialist scores LOWER than the untuned base on
+go_dev_bench v2 (33 vs 39). The adapter is a NET NEGATIVE on this harder bench. It fixes a
+couple of string/generic tasks the base missed (reverse_runes, camel_to_snake, max_generic)
+but breaks MORE across errors / concurrency / io.Reader / algorithm tasks (atoi_sum,
+group_anagrams, group_parity, http_sum_handler, merge_channels, min_heap, parse_query,
+rle_decode, upper_reader) — the classic LoRA overfitting + catastrophic-forgetting signature
+from fine-tuning on a narrow mixed dataset. (Cross-check: the SERVED go-dev-mixed-v4 via the
+production endpoint + bench_compare also scored 39/48, but on a slightly different task set and
+a different harness — the same-harness mlx_bench A/B above is the fair comparison and it is
+unambiguous: the adapter regresses.)
+
+IMPLICATION FOR THE THESIS: on this v2 bench the CURRENT specialist adapter does NOT beat the
+base — it hurts. This empirically supports the recent pivot to DAPT (domain-adaptive
+pretraining) over the mixed-SFT LoRA, and confirms the v2 bench is a sharper instrument (the
+old bench saturated ~19/24 and hid this). Next: measure a DAPT'd model on the same bench, and/or
+retrain the adapter with less-narrow data / lower rank to stop the forgetting.
+
+=== DAPT-replay measured (same mlx_bench harness) + chat-integrity probe, 2026-07-19 ===
+go-dapt-replay-4bit (fused DAPT, .mlx-fused/go-dapt-replay-4bit):  go_dev_bench pass@1 = 15/48
+behavior_probe (--n 6):  CHAT BEHAVIOUR DAMAGED — 3/6 prompts BAD (reverse_runes & dedup_stable
+  don't STOP: ramble to 2346 / 2538 tokens, fence never closed; errors_wrap: stopped but fence
+  not closed). Only 3/6 clean.
+
+INTERPRETATION (do NOT read 15/48 as a coding deficit): the crucible author's own note (commit
+f89ee4e, behavior_probe) warns "the damage unit benches UNDER-REPORT" DAPT models — this confirms it.
+go-dapt-replay's low 15/48 is LARGELY a CHAT-INTEGRITY artifact: on ~half the prompts it doesn't
+emit EOS / doesn't close the ```go fence, so extract_code + go test get garbage even when the Go
+inside might be fine. The DAPT (even the instruct-REPLAY variant) DID NOT fully preserve chat
+behaviour. A fair coding score for DAPT needs the chat integrity fixed first (more/stronger replay,
+EOS/template alignment) — until then the unit bench can't score it.
+
+=== SUMMARY (go_dev_bench v2, same mlx_bench harness) ===
+  BASE (untuned 7B-4bit) ............ 39/48   (chat integrity intact — the usable model)
+  go-dev-mixed-v4 (LoRA) ............ 33/48   (clean REGRESSION −6: SFT overfitting/forgetting)
+  go-dapt-replay-4bit (fused DAPT) .. 15/48*  (*chat behaviour DAMAGED; score under-reports)
+THESIS STATE: neither current trained variant beats the untuned base on this bench. The LoRA is a
+real net-negative; the DAPT can't yet be fairly scored (broken chat integrity). The untuned base
+remains the best usable coder for the Builder loop. This is the sharpest signal yet that (a) the
+mixed-SFT recipe overfits/forgets, and (b) the DAPT recipe needs its instruction/chat behaviour
+repaired before its coding gains (if any) can be measured. The v2 bench + behavior_probe together
+are the instrument that makes this legible; the old saturated bench hid all of it.
