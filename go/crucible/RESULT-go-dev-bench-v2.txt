@@ -154,3 +154,23 @@ specialist parity) AND an honest QUALIFIER: at this algorithm strength the train
 little (a marginal fix-round reduction). The specialist's edge would likely show more on HARDER
 backends or with WEAKER gates; with the current strong loop, base ~ specialist. (n=3, small; the
 metric — count fix-rounds, not green — is the right one and worth a bigger sweep.)
+
+=== RAW-MODEL ABLATION (attempted) + a flag limitation, 2026-07-19 ===
+Tried to isolate the specialist's RAW value by stripping the algorithm (--candidates 1 --max-fix-rounds 0).
+Findings:
+- With RETRIEVAL on (--shots 2), both BASE and specialist ship a GREEN stdlib tasks-api backend, NO
+  gorilla/mux, essentially first-try (N=1). So RETRIEVAL (2 stdlib-ServeMux shots) is a strong lever that
+  carries BOTH models — consistent with the memory's "retrieval is THE project-level lever". On this spec
+  the specialist's training is largely REDUNDANT with retrieval.
+- IMPORTANT: this also UPDATES the memory's old "raw 7B on tasks-api = 0/3 (gorilla/mux)": the current
+  Qwen2.5-Coder-7B base, WITH retrieval, does NOT reach for mux — it writes clean stdlib. Either the base
+  improved or retrieval fully covers the mux failure mode.
+- LIMITATION (honest): --max-fix-rounds 0 did NOT disable the fix-loop — a fully-raw (--shots 0
+  --max-fix-rounds 0) base run still ran model fix-passes ("fixing store_test.go"). So a CLEAN pure-model
+  A/B (no retrieval, no best-of-N, no fix-loop) is NOT achievable via flags alone; it needs a code path
+  that truly emits one shot with zero repair. Killed that run as compromised.
+NET: the clean isolation of "specialist raw value vs algorithm" is blocked by the flag not honouring
+max-fix-rounds 0. What IS established: retrieval + the gated loop carry the untuned base to specialist
+parity on these backends; the specialist's marginal edge (fix-rounds) and its raw stdlib bias are real
+but largely covered by retrieval today. To re-expose the model's contribution one must ablate in CODE
+(one-shot, no retrieval, no fix-loop) — the next local experiment if pursued.
