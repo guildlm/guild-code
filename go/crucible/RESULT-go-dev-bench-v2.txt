@@ -174,3 +174,25 @@ max-fix-rounds 0. What IS established: retrieval + the gated loop carry the untu
 parity on these backends; the specialist's marginal edge (fix-rounds) and its raw stdlib bias are real
 but largely covered by retrieval today. To re-expose the model's contribution one must ablate in CODE
 (one-shot, no retrieval, no fix-loop) — the next local experiment if pursued.
+
+=== PURE-MODEL A/B (standalone one-shot, NO algorithm) — the cleanest result, 2026-07-20 ===
+Wrote a standalone raw-gen (scratchpad/raw_gen.py): each tasks-api file generated one-shot from the
+served model, WITH cross-file context (sibling purposes, so missing-symbol isn't the test) but NO
+best-of-N, NO stdlib prompt-guard, NO import/redeclaration gates, NO fix-loop, NO retrieval. Same
+prompt for base and specialist. Result:
+  PURE-MODEL BASE:        build FAIL — imports github.com/gorilla/mux + a package-path error.
+  PURE-MODEL SPECIALIST:  build FAIL — imports github.com/gorilla/mux + the SAME package-path error.
+IDENTICAL failure. Without the algorithm BOTH models reach for gorilla/mux (ignoring even the spec's
+own "standard library only" text) and both botch the package structure. Contrast with the FULL gated
+Builder (retrieval + stdlib-guard + gates + fix-loop): there BOTH ship a GREEN stdlib backend.
+
+CONCLUSION (the sharpest of the whole study): the ALGORITHM is the ENTIRE difference between a
+mux-failing one-shot and a green multi-file backend — and it delivers that difference EQUALLY to the
+base and the specialist. On this project-level task the trained specialist adds NOTHING the algorithm
+doesn't already provide; the raw model (either one) fails identically. This is the strongest empirical
+support in the whole session for the core bet: capability = model × ALGORITHM, and here the ALGORITHM
+term dominates so completely that the model term is ~irrelevant. It also nails what the earlier
+retrieval-carries-both result implied: retrieval + the guards, not the fine-tuning, are what convert a
+mux-prone 7B into a stdlib-backend generator. Practical read: invest in the ALGORITHM (retrieval corpus,
+gates, repair) over the specialist — the specialist only matters where the algorithm is weaker/absent
+(and this run shows that where it's absent, the specialist is no better than the base). n=1 spec.
