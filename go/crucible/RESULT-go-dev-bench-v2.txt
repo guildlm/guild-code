@@ -69,3 +69,17 @@ and/or cut DAPT steps below ~400, and/or repeat the replay slice more within one
 (Kaggle) and re-run behavior_probe FIRST (gate on chat integrity) before trusting any unit-bench
 score. The replay recipe is right; there just isn't enough of it. This turns the vague "fix DAPT chat
 integrity" NEXT into a single-knob experiment (replay fraction 0.13 -> 0.25).
+
+=== LoRA checkpoint A/B — OVER-TRAINING HYPOTHESIS REFUTED (2026-07-19) ===
+Benched go-dev-mixed-v4 at an EARLY checkpoint (iter 400) to test whether the final adapter
+over-trained. Result (same mlx_bench harness):
+  BASE (untuned) .............. 39/48
+  go-dev-mixed-v4 iter 400 .... 30/48
+  go-dev-mixed-v4 iter 1200 ... 33/48  (final)
+The early checkpoint is LOWER (30 < 33), i.e. MORE training HELPS (30 -> 33) — the LoRA is NOT
+over-training within 400-1200 iters; it is still improving at the end. So EARLY-STOPPING is NOT
+the fix. The mixed-SFT itself pulls the model BELOW the base (a distribution shift / narrow-data
+effect), and more iters only partially recover it — it never reaches base. CORRECTED conclusion:
+the LoRA fix is the DATA (broaden / raise quality / de-narrow the mixed set) or a different recipe,
+NOT fewer iters and NOT lower rank (rank is already 8). Config: rank 8, num_layers 16, iters 1200,
+dropout 0.0, LR 1e-4. (Honest note: my over-training guess was wrong; the checkpoint A/B refuted it.)
