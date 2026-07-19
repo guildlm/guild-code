@@ -117,3 +117,21 @@ noise), replicated across two specialist runs. This CONFIRMS: the mlx_bench GREE
 aggregate is stable ~38-39. FINAL: on go_dev_bench v2, the mixed-SFT LoRA neither beats nor loses to
 the untuned base in production — it is a wash; the training's value (if any) must be sought at the
 PROJECT level (score_backend) and/or with a better recipe (broader data), not this unit bench.
+
+=== PROJECT-LEVEL A/B (the headline metric): tasks-api 8-file backend, gated Builder, 2026-07-19 ===
+Ran the full gated Builder loop (best-of-N + stdlib/redeclaration gates + fix-loop, temp 0.1
+production path) on the tasks-api 8-file backend with BASE vs the trained specialist:
+  BASE (untuned):   independent go build/vet/test = GREEN — BUT needed a fix round: it emitted
+                    `undefined: NewStore` (skipped the spec's constructor) + a dead errors.Is guard;
+                    the algorithm's deterministic fix-loop repaired both to converge (5 fix-log events).
+  specialist (go-dev-mixed-v4, teeth run, same edited spec): GREEN with far LESS repair (1 event —
+                    converged essentially first-try).
+FINDING (nuanced, supports the thesis): at the binary GREEN/not-GREEN level the ALGORITHM EQUALIZES
+them — both the base and the specialist ship a green 8-file backend once the gates + fix-loop run.
+The specialist's edge is not pass/fail but REPAIR EFFICIENCY: it emits the required symbols/structure
+first-try, needing fewer algorithm interventions. This UPDATES the memory's older "raw 7B on tasks-api
+scored 0/3 (gorilla/mux)": the gates added since (import-guard, no-cross-file-redeclaration) now carry
+the BASE to green — i.e. the ALGORITHM improved to the point model size stops deciding pass/fail. That
+is exactly the thesis ("capability = model x ALGORITHM; a strong algorithm lets a small/untuned model
+punch up"). The specialist still helps by lowering the repair burden. (n=1 spec; a fuller A/B would
+sweep several multi-file specs and count fix-rounds as the metric, not just green.)
