@@ -83,3 +83,26 @@ effect), and more iters only partially recover it — it never reaches base. COR
 the LoRA fix is the DATA (broaden / raise quality / de-narrow the mixed set) or a different recipe,
 NOT fewer iters and NOT lower rank (rank is already 8). Config: rank 8, num_layers 16, iters 1200,
 dropout 0.0, LR 1e-4. (Honest note: my over-training guess was wrong; the checkpoint A/B refuted it.)
+
+=== CRITICAL CAVEAT: the specialist-vs-base verdict FLIPS with decoding temperature (2026-07-19) ===
+Ran bench_compare against a SERVED BASE (mlx_lm.server, no adapter, temp 0.1 — the PRODUCTION path
+the Builder actually uses) to check whether the mlx_bench greedy regression is real:
+
+  harness / decoding              BASE    specialist(go-dev-mixed-v4)   verdict
+  mlx_bench     (greedy, temp 0)  39/48   33/48                          specialist −6 (REGRESS)
+  bench_compare (served, temp 0.1) 38/48   39/48                          specialist +1 (~TIE)
+
+The 6-point greedy "regression" DOES NOT REPRODUCE under temp 0.1 — there the specialist ~ties/edges
+the base (38 vs 39, within sampling noise). So the specialist's apparent regression is largely a
+GREEDY-DECODING ARTIFACT: the adapter shifts the distribution so its argmax token is often slightly
+worse, but a little sampling (temp 0.1, as in production) recovers it. DECODING TEMPERATURE DOMINATES
+the specialist-vs-base comparison on this bench.
+
+CORRECTED CONCLUSION: the mixed-SFT LoRA is NOT a clear net-negative in production — under the temp
+0.1 path the Builder uses, it is a wash with the base (not the −6 the greedy bench suggested). The
+earlier "LoRA regresses" headline was harness-dependent and is HEREBY QUALIFIED. (temp 0.1 is noisy;
+a clean call needs multiple seeded runs — but the direction is clear: greedy over-penalises the
+adapter.) The DAPT chat-damage finding is UNAFFECTED — behavior_probe rambling/no-EOS is
+temperature-independent, so go-dapt-replay's broken chat integrity stands regardless.
+METHOD LESSON: benchmark the specialist at the SAME temperature production uses, and report the
+decoding regime — a greedy A/B and a temp-0.1 A/B gave OPPOSITE verdicts here.
