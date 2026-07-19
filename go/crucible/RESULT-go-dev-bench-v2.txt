@@ -52,3 +52,20 @@ remains the best usable coder for the Builder loop. This is the sharpest signal 
 mixed-SFT recipe overfits/forgets, and (b) the DAPT recipe needs its instruction/chat behaviour
 repaired before its coding gains (if any) can be measured. The v2 bench + behavior_probe together
 are the instrument that makes this legible; the old saturated bench hid all of it.
+
+=== DIAGNOSIS: why go-dapt-replay's chat integrity broke (2026-07-19, model-free) ===
+Examined the replay corpus datasets/mining/go_dapt_replay.jsonl (38,328 lines):
+  - 15% of lines / 13% of CHARS are chat-formatted (matches build_dapt_replay's ~12% --frac target).
+  - The chat lines are CORRECTLY formed: full `<|im_start|>system\nYou are GuildLM go-dev...<|im_end|>`
+    ... assistant turn ends with ```<|im_end|>\n (im_end count 3 per line). The EOS/stop signal IS
+    in the replay data. So the data is NOT the bug.
+CONCLUSION: the failure is the FRACTION, not the format. 13% replay char-share was INSUFFICIENT to
+keep the chat special tokens / stopping behaviour alive through the DAPT run. build_dapt_replay's own
+docstring warns the chat behaviour collapses "after 300-600 steps"; the sibling fused model
+`go-dapt600-7b-4bit` implies ~600 steps — right in that danger zone. So 13% replay over ~600 steps
+lost the fight.
+ACTIONABLE FIX (cheap, concrete): rebuild go_dapt_replay at a HIGHER fraction (--frac 0.25-0.30),
+and/or cut DAPT steps below ~400, and/or repeat the replay slice more within one epoch; then re-DAPT
+(Kaggle) and re-run behavior_probe FIRST (gate on chat integrity) before trusting any unit-bench
+score. The replay recipe is right; there just isn't enough of it. This turns the vague "fix DAPT chat
+integrity" NEXT into a single-knob experiment (replay fraction 0.13 -> 0.25).
