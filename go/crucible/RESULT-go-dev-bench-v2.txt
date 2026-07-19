@@ -106,3 +106,14 @@ adapter.) The DAPT chat-damage finding is UNAFFECTED — behavior_probe rambling
 temperature-independent, so go-dapt-replay's broken chat integrity stands regardless.
 METHOD LESSON: benchmark the specialist at the SAME temperature production uses, and report the
 decoding regime — a greedy A/B and a temp-0.1 A/B gave OPPOSITE verdicts here.
+
+=== temp-0.1 ~TIE REPLICATED (n=2 specialist), 2026-07-19 ===
+Second bench_compare run of the SERVED specialist (temp 0.1) = 38/48. So at production temp:
+  specialist runs: 39, 38  (mean ~38.5)   ·   base run: 38
+The specialist and base are STATISTICALLY IDENTICAL at temp 0.1 (all within 1 point = sampling
+noise), replicated across two specialist runs. This CONFIRMS: the mlx_bench GREEDY 6-point
+"regression" (base 39 vs spec 33) is a decoding artifact; under production sampling the specialist
+~TIES the base. Per-task pass sets differ run-to-run (temp 0.1 is non-deterministic) but the
+aggregate is stable ~38-39. FINAL: on go_dev_bench v2, the mixed-SFT LoRA neither beats nor loses to
+the untuned base in production — it is a wash; the training's value (if any) must be sought at the
+PROJECT level (score_backend) and/or with a better recipe (broader data), not this unit bench.
