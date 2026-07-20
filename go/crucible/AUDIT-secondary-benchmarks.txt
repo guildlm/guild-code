@@ -71,3 +71,19 @@ AUDIT COMPLETE — every benchmark in the pipeline is now integrity-checked:
 Leakage is confined to the code-gen benches (shared go-dev corpus) and everywhere
 favours the specialist; review/test benches are clean; test-bench scoring is the
 tightest of the set. The evaluation pipeline is sound.
+
+-----------------------------------------------------------------------------
+go-edit base-vs-specialist (2026-07-20, greedy) — the specialist's EDIT skill
+-----------------------------------------------------------------------------
+Only generation (go-dev) had been benched; the mixed-SFT specialist also trained on
+EDIT ("fix this bug") tasks, so measured base vs specialist-v4 on go_edit_bench:
+  edit-8    base 5/8   spec 6/8   (+1)
+  clean-6   base 4/6   spec 5/6   (+1)   (2 contaminated edit tasks removed)
+CONTRAST with generation, where the specialist was net-NEGATIVE (-5 full / -6 clean):
+on EDITING it is roughly EVEN to slightly POSITIVE (+1 both). So the specialist's
+deficit is GENERATION-SPECIFIC, not uniform — on its edit skill it holds even/ahead.
+CAVEAT: N=8/6, so +1 is a single-task margin — well within noise at this size;
+SUGGESTIVE, not robust. But the SIGN differs from generation's clear multi-task
+deficit. REFINES "the specialist adds nothing" -> "net-negative on GENERATION, ~even
+on EDITING; the algorithm still carries both, and the specialist's trained edit skill
+is where any value shows." A larger go_edit_bench would be needed to firm this up.
