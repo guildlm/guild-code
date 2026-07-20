@@ -54,9 +54,15 @@ def main() -> int:
         "--bench", default=os.path.join(os.path.dirname(__file__), "data", "go_test_bench.jsonl")
     )
     ap.add_argument("--max-tokens", type=int, default=700)
+    ap.add_argument("--best-of", type=int, default=1,
+                    help="best-of-N (the ALGORITHM term): generate N candidates, CATCH if ANY "
+                         "catches the bug. N>1 samples with temperature.")
+    ap.add_argument("--temp", type=float, default=0.0,
+                    help="sampling temperature (auto 0.6 when --best-of>1 and left at 0).")
     args = ap.parse_args()
 
     from mlx_lm import generate, load
+    from mlx_lm.sample_utils import make_sampler
 
     model, tokenizer = load(args.model, adapter_path=args.adapter)
     # The mlx-community Qwen configs carry eos_token_id=<|endoftext|> only, so
@@ -67,6 +73,9 @@ def main() -> int:
     if len(im_end) == 1:
         tokenizer.eos_token_ids.add(im_end[0])
     label = os.path.basename(args.adapter) if args.adapter else "BASE (untuned)"
+    temp = args.temp if args.temp > 0 else (0.6 if args.best_of > 1 else 0.0)
+    sampler = make_sampler(temp=temp) if temp > 0 else None
+    tag = f"best-of-{args.best_of}@t{temp}" if args.best_of > 1 else "greedy"
     tasks = [json.loads(l) for l in open(args.bench)]
     print(f"mlx test-bench (mutation): {len(tasks)} tasks · model={label}\n")
 
@@ -75,9 +84,16 @@ def main() -> int:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": t["prompt"]}]
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
         try:
-            test = extract_code(generate(model, tokenizer, prompt=prompt, max_tokens=args.max_tokens, verbose=False))
-            # Catches the bug iff it passes on correct AND fails on the mutant.
-            ok = _go_test(t["metadata"]["correct"], test) and not _go_test(t["metadata"]["mutant"], test)
+            ok = False
+            for _ in range(args.best_of):
+                gkw = {"max_tokens": args.max_tokens, "verbose": False}
+                if sampler is not None:
+                    gkw["sampler"] = sampler
+                test = extract_code(generate(model, tokenizer, prompt=prompt, **gkw))
+                # Catches the bug iff it passes on correct AND fails on the mutant.
+                if _go_test(t["metadata"]["correct"], test) and not _go_test(t["metadata"]["mutant"], test):
+                    ok = True
+                    break  # best-of-N: one catch is enough
         except Exception as e:
             ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
@@ -85,7 +101,7 @@ def main() -> int:
         passed += ok
         detail.append(f"{'+' if ok else '-'}{t['id']}")
 
-    print(f"{label}: bug-catch@1 = {passed}/{len(tasks)}  [{' '.join(detail)}]")
+    print(f"{label} [{tag}]: bug-catch@{args.best_of} = {passed}/{len(tasks)}  [{' '.join(detail)}]")
     return 0
 
 
