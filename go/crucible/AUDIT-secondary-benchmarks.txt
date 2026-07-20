@@ -87,3 +87,31 @@ SUGGESTIVE, not robust. But the SIGN differs from generation's clear multi-task
 deficit. REFINES "the specialist adds nothing" -> "net-negative on GENERATION, ~even
 on EDITING; the algorithm still carries both, and the specialist's trained edit skill
 is where any value shows." A larger go_edit_bench would be needed to firm this up.
+
+=============================================================================
+CROSS-SPECIALIST THESIS TEST (2026-07-20, greedy, each specialist on ITS skill)
+=============================================================================
+  go-dev    generation (go_dev clean-45, go test)   base 37/45  spec 31/45   -6
+  go-dev    editing     (go_edit clean-6, go test)  base  4/6   spec  5/6    +1*
+  go-test   test-writing(go_test_bench, MUTATION)   base  7/18  spec 10/18   +3
+  go-review bug-finding (go_review_bench, keyword)  base  7/8   spec  6/8    -1**
+  * N=6, single-task margin (noise)   ** keyword-scored (weak/ceiling; base near-max)
+
+REFINED THESIS — "the ALGORITHM dominates" is SKILL-DEPENDENT, not universal:
+  - GENERATION: the algorithm (retrieval + gates + repair) already carries the base to
+    a green backend, so the go-dev generation specialist is REDUNDANT and net-NEGATIVE
+    (-6). The MODEL term is ~irrelevant here (matches the pure-model A/B: base and
+    specialist fail identically without the algorithm, both ship green with it).
+  - TEST-WRITING: the go-test specialist ADDS REAL VALUE (+3, robust MUTATION scoring,
+    N=18). Test-writing is a narrower, less retrieval-friendly task, so the specialist's
+    trained skill matters — the MODEL term dominates HERE.
+  - EDITING (+1, N=6) and BUG-FINDING (-1, weak keyword scoring): inconclusive.
+
+So "capability = model x ALGORITHM" — WHICH TERM dominates depends on the SKILL:
+ALGORITHM for generation, MODEL for test-writing. This CORRECTS the earlier flat
+"the specialist adds nothing / algorithm dominates so completely the model term is
+~irrelevant" (that was measured only on GENERATION).
+PRACTICAL: retrieval makes a go-DEV generation specialist redundant — invest the
+training budget in the go-TEST specialist, which earns its keep (+3).
+CAVEAT: small benches (N=18/8/6); the go-test +3 is the most robust (mutation, N=18);
+firm up with larger test/edit benches and n>1 samples.
