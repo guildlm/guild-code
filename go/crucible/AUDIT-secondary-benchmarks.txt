@@ -48,3 +48,26 @@ The review bench remains a rough, objective signal — just not a tight one.
 RECOMMENDATION (do not mutate silently — it would strand any recorded review numbers):
 drop the in-prompt/generic keywords (`%w`, `loop`, `once`, `leak`), or raise the bar
 from `any()` to ">=2 distinct concept keywords", so a pass requires real diagnosis.
+
+-----------------------------------------------------------------------------
+go_test_bench integrity (2026-07-20) — mutation-scored, robust by design
+-----------------------------------------------------------------------------
+mlx_test_bench scores bug-catch@1 as `_go_test(correct, test) AND NOT _go_test(mutant,
+test)` — the model's test counts only if it passes on the correct impl and FAILS on
+the planted mutant. That is a mutation-kill by construction (teeth built in). Verified
+every task is well-formed by running each REFERENCE test the same two ways:
+  - correct == mutant (no real difference): 0/18
+  - reference test FAILS on correct (bad reference): 0/18
+  - reference test does NOT kill the mutant (un-scorable task): 0/18
+All 18 tasks: reference passes correct AND kills the mutant. SOUND.
+
+=============================================================================
+AUDIT COMPLETE — every benchmark in the pipeline is now integrity-checked:
+  go_dev   48  solvable+non-degenerate  · 3/48 contaminated (2 in v4)
+  go_edit   8  solvable+non-degenerate  · 2/8  contaminated (both in v4)
+  go_gen    2  solvable+non-degenerate  · (n/a)
+  go_review 8  keyword-scored: 1 echo-degenerate + generic keywords · 0/8 contam
+  go_test  18  mutation-scored, all well-formed · 0/18 contaminated
+Leakage is confined to the code-gen benches (shared go-dev corpus) and everywhere
+favours the specialist; review/test benches are clean; test-bench scoring is the
+tightest of the set. The evaluation pipeline is sound.
