@@ -196,3 +196,32 @@ retrieval-carries-both result implied: retrieval + the guards, not the fine-tuni
 mux-prone 7B into a stdlib-backend generator. Practical read: invest in the ALGORITHM (retrieval corpus,
 gates, repair) over the specialist — the specialist only matters where the algorithm is weaker/absent
 (and this run shows that where it's absent, the specialist is no better than the base). n=1 spec.
+
+================================================================================
+HARNESS AUDIT (2026-07-20, model-free static review of the scoring code)
+================================================================================
+Reviewed mlx_bench.py and bench_compare.py for a scoring bug that could bias the
+base-vs-specialist A/B this whole study rests on. Found none — the numeric
+foundation is sound.
+
+  - IDENTICAL scoring cores: both harnesses use the same runs_green (a task counts
+    ONLY if the model's own Go + the hidden test compile and `go test` returns 0,
+    stdlib-only, GOPROXY=off), the same extract_code (first ```go fence, else whole
+    text), the same MODULE=sandbox and the same SYSTEM prompt. The pass criterion is
+    therefore consistent across the two harnesses.
+  - mlx_bench base-vs-adapter A/B is FAIR: base and adapter get the same prompt, the
+    same GREEDY decode, the same max_tokens (900), the same EOS registration
+    (<|im_end|> added so tuned adapters stop instead of rambling to the cap), the
+    same extraction and the same test-run. The ONLY difference is the adapter
+    weights. Nothing in the harness advantages one over the other.
+  - The greedy (mlx_bench) vs temp-0.1-served (bench_compare) verdict flip is thus a
+    genuine DECODING-REGIME effect, not a scoring artefact: the two harnesses differ
+    only in decode temperature, backend (local MLX-4bit vs Ollama-served) and
+    max_tokens (900 vs 1024) — their scoring is byte-for-byte the same logic.
+  - An errored task is a miss in both (numerator unchanged, denominator = all tasks).
+  - Fixed one COSMETIC inconsistency: bench_compare's error path lacked mlx_bench's
+    `continue`, so an errored task double-appended to the detail list. Scores were
+    never affected; the detail output now matches mlx_bench.
+
+VERDICT: no scoring bug; the base~specialist and greedy-vs-served findings stand on
+a fair, consistent harness.

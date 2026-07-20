@@ -93,8 +93,8 @@ def main() -> int:
                 code = extract_code(ask(args.base_url, model, t["prompt"], args.api_key))
                 ok = runs_green(code, test)
             except Exception as e:  # network/model error counts as a miss
-                ok = False
                 detail.append(f"{t['id']}:ERR({type(e).__name__})")
+                continue  # a miss: passed unchanged, no second detail entry (matches mlx_bench)
             passed += ok
             detail.append(f"{'+' if ok else '-'}{t['id']}")
         scores[model] = passed
