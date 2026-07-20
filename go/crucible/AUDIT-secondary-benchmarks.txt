@@ -1,0 +1,29 @@
+AUDIT — secondary specialist benchmarks (2026-07-20)
+=====================================================
+Extended the go-dev credibility audit (verify_bench.py + check_contamination.py) to
+the other specialists' benchmarks. Summary: the two go-test-able code-gen benches are
+SOUND but share go-dev's contamination; the review and test benches are CLEAN.
+
+go_edit_bench (8 tasks, module=sandbox, go-test scored)
+  - verify_bench: 8/8 references pass their own test, 0 degenerate -> SOUND.
+  - contamination: 2/8 verbatim in go-dev SFT (sum_off_by_one, reverse_unicode),
+    BOTH in the benched mixed-v4-7b set. Higher rate than go-dev (25% vs 6.25%) —
+    edit "fix -> correct code" references are common Go functions. Edit is trained
+    within go-dev, so this is the same leak surface. Same reading: contamination
+    favours the specialist, so it cannot explain a specialist that fails to win.
+
+go_generator (2 tasks, go-test scored): verify_bench 2/2 pass, 0 degenerate — SOUND.
+
+go_review_bench (8 tasks): metadata is KEYWORDS, not tests — judged on review-comment
+  content, not `go test`, so verify_bench does not apply (a bespoke check would score
+  keyword recall). contamination: 0/8 verbatim in goreview SFT -> CLEAN.
+
+go_test_bench (18 tasks): metadata is correct/mutant/module — the model writes a test
+  that must PASS on correct and FAIL on the mutant; not a verify_bench shape.
+  contamination: 0/18 verbatim in gotest SFT -> CLEAN.
+
+CONCLUSION: train-test leakage is confined to the CODE-GENERATION benches (go-dev,
+go-edit) that share the go-dev training corpus; the review and test specialists'
+benches are pristine. Everywhere it appears, contamination inflates the specialist,
+never the base — so it strengthens, never weakens, the "algorithm dominates" reading.
+Re-runnable with verify_bench.py / check_contamination.py per bench.
