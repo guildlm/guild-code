@@ -57,9 +57,13 @@ def main() -> int:
         "--bench", default=os.path.join(os.path.dirname(__file__), "data", "go_dev_bench.jsonl")
     )
     ap.add_argument("--max-tokens", type=int, default=900)
+    ap.add_argument("--temp", type=float, default=0.0,
+                    help="sampling temperature; 0 = greedy/deterministic (default), "
+                         ">0 reproduces the served regime locally (nondeterministic).")
     args = ap.parse_args()
 
     from mlx_lm import generate, load
+    from mlx_lm.sample_utils import make_sampler
 
     model, tokenizer = load(args.model, adapter_path=args.adapter)
     # The mlx-community Qwen configs carry eos_token_id=<|endoftext|> only, so
@@ -76,17 +80,22 @@ def main() -> int:
         print(f"WARNING: <|im_end|> did not encode to a single token ({im_end}); "
               "generation may not stop and scores for tuned adapters will be biased low.",
               file=sys.stderr)
+    sampler = make_sampler(temp=args.temp) if args.temp > 0 else None
     label = f"{os.path.basename(args.adapter)}" if args.adapter else "BASE (untuned)"
+    regime = "greedy" if args.temp == 0 else f"temp={args.temp}"
 
     tasks = [json.loads(l) for l in open(args.bench)]
-    print(f"mlx bench: {len(tasks)} tasks · model={label}\n")
+    print(f"mlx bench: {len(tasks)} tasks · model={label} · {regime}\n")
 
     passed, detail = 0, []
     for t in tasks:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": t["prompt"]}]
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
         try:
-            out = generate(model, tokenizer, prompt=prompt, max_tokens=args.max_tokens, verbose=False)
+            gkw = {"max_tokens": args.max_tokens, "verbose": False}
+            if sampler is not None:
+                gkw["sampler"] = sampler
+            out = generate(model, tokenizer, prompt=prompt, **gkw)
             ok = runs_green(extract_code(out), t["metadata"]["tests"])
         except Exception as e:  # generation/runtime error counts as a miss
             ok = False
