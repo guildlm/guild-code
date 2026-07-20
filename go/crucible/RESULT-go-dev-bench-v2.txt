@@ -339,3 +339,13 @@ rescue it. The historical "served TIE" (base 38 / LoRA 39, ~tied) came from OLLA
 CAVEAT: temp-0.1 is nondeterministic; these are single samples (the clean-45 -9 has a
 several-task variance). The SIGN and qualitative verdict are robust; exact magnitudes
 are not. A 3x-repeat would tighten the clean-45 temp-0.1 number.
+
+--- n=3 UPDATE: temp-0.1 clean-45 variance (corrects the single-sample -9) ---
+Re-ran clean-45 temp-0.1 for n=3: base {36,35,35} mean 35.3 · spec {27,29,30} mean 28.7
+=> gap ~ -6.7, NOT -9. The first spec draw (27) was the low tail. The corrected gap
+~matches the greedy clean-45 (-6) and the temp-0.1 full-48 (-5): decoding temperature
+moves the base-vs-specialist gap by ~0 on MLX. This REINFORCES (and cleans up) the
+backend-artifact conclusion — greedy and temp-0.1 give essentially the SAME gap; the
+"served tie" was entirely a backend (Ollama-GGUF) effect. Corrected magnitudes:
+  greedy    full -5   clean -6
+  temp-0.1  full -5   clean ~-6.7 (n=3)     [earlier -9 was a single low sample]
