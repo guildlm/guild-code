@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import re
+import sys
 
 SYSTEM = (
     "You are a Go development specialist. Output one complete Go file in a single "
@@ -48,6 +49,13 @@ def main() -> int:
     im_end = tokenizer.encode("<|im_end|>")
     if len(im_end) == 1:
         tokenizer.eos_token_ids.add(im_end[0])
+    else:
+        # If this ever fails, NOTHING stops generation at <|im_end|>: every model
+        # rambles to the cap and even a healthy one reads as DAMAGED. Make it loud
+        # rather than silently invert the verdict.
+        print(f"WARNING: <|im_end|> did not encode to a single token ({im_end}); "
+              "'stopped' is unreliable and this run's verdict cannot be trusted.",
+              file=sys.stderr)
     label = os.path.basename(args.adapter) if args.adapter else "BASE"
     tasks = [json.loads(l) for l in open(args.bench)][: args.n]
 
