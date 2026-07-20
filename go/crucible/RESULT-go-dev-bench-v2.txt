@@ -313,3 +313,29 @@ the regressions are WIDER than that — the mixed-SFT specialist is broad forget
 a couple of narrow string/generic wins, not a clean specialisation tradeoff. Net -5
 (full) / -6 (clean). This is WHY the specialist is net-negative: it does not trade
 breadth for a sharpened niche; it loses breadth for almost no niche gain.
+
+================================================================================
+SERVED-REGIME (temp-0.1) RE-BENCH — the "served tie" was a BACKEND artifact
+================================================================================
+Added --temp to mlx_bench and re-ran on the SAME MLX model (single nondeterministic
+sample per config), to isolate DECODING from BACKEND (the earlier greedy-vs-served
+comparison confounded the two):
+
+                 full-48                  clean-45
+  greedy    base 39  spec 34  (-5)   base 37  spec 31  (-6)
+  temp-0.1  base 40  spec 35  (-5)   base 36  spec 27  (-9*)   *single sample, +/-2-3
+
+The specialist is net-NEGATIVE in ALL FOUR cells. On the SAME backend, raising the
+temperature moves the full-48 verdict by ~0 (-5 at both temps) — decoding does NOT
+rescue it. The historical "served TIE" (base 38 / LoRA 39, ~tied) came from OLLAMA
+(GGUF) and does NOT reproduce on MLX at temp-0.1.
+
+=> The greedy-vs-served "FLIP" the earlier notes attributed to DECODING REGIME was a
+   BACKEND artifact (Ollama-GGUF specialist vs MLX-4bit specialist), NOT decoding.
+   This CORRECTS "LoRA ~tied in production / the greedy regression is a greedy
+   artifact": holding the backend fixed, the mixed-SFT specialist is net-negative at
+   every temperature tested. The thesis (base >= specialist, algorithm dominates) is
+   even more robust than the greedy result alone suggested.
+CAVEAT: temp-0.1 is nondeterministic; these are single samples (the clean-45 -9 has a
+several-task variance). The SIGN and qualitative verdict are robust; exact magnitudes
+are not. A 3x-repeat would tighten the clean-45 temp-0.1 number.
