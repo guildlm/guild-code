@@ -245,3 +245,34 @@ VERDICT: the go_dev_bench is well-formed, fully solvable, and non-degenerate. Wi
 the corpus (verify_dapt_replay.py), the harness (audit above) and now the data all
 checked, the thesis's numeric foundation is sound on every front. Re-runnable via
 `verify_bench.py data/go_dev_bench.jsonl` after any bench rebuild.
+
+================================================================================
+TRAIN-TEST CONTAMINATION (2026-07-20, check_contamination.py)
+================================================================================
+The classic way a pass@1 lies: a task whose reference solution is verbatim in the
+training data can be MEMORISED, so its pass measures recall not capability. Checked
+all 48 go_dev_bench reference bodies (normalised, exact substring within a single
+training doc) against the 9 go-dev SFT sets and the DAPT core.
+
+FOUND — 3/48 references leaked into go-dev SFT training:
+  - map_generic    : verbatim in 8 sets, INCLUDING mixed-v4-7b (the benched adapter)
+  - reverse_runes  : verbatim in 7 sets, INCLUDING mixed-v4-7b
+  - safe_counter   : verbatim in the `scaled` set ONLY (not the benched v4 adapter)
+  0 PROMPT leaks (prompts were reworded); DAPT core adds no exact-ref leak; the 8
+  "near-dup" line hits are single generic idioms (`for i:=0;i<n;i++`, sort.Slice),
+  common Go, not task leakage.
+
+So the BENCHED go-dev-mixed-v4 adapter trained on 2 of the 48 bench answers.
+
+WHY THIS REINFORCES THE THESIS rather than threatening it:
+  Contamination inflates the SPECIALIST (it trained on the leaked refs), NEVER the
+  untuned base. The specialist thus had 2/48 memorisable gimmes — and STILL lost the
+  greedy bench 33 vs base 39, and only tied at served temp-0.1 (38/39). Remove the 2
+  contaminated tasks and the specialist's edge on them vanishes, tipping the clean-45
+  comparison further toward the base. The central finding — base ~= specialist, the
+  ALGORITHM dominates — holds A FORTIORI: the specialist could not win even spotted
+  two memorised answers.
+
+RECOMMENDATION: for a pristine bench, regenerate map_generic / reverse_runes /
+safe_counter with tasks absent from the training corpora, or score on the clean 45.
+Re-runnable: check_contamination.py --bench data/go_dev_bench.jsonl --train <sets...>.
