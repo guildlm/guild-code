@@ -225,3 +225,23 @@ foundation is sound.
 
 VERDICT: no scoring bug; the base~specialist and greedy-vs-served findings stand on
 a fair, consistent harness.
+
+================================================================================
+BENCHMARK-DATA INTEGRITY (2026-07-20, verify_bench.py over go_dev_bench.jsonl)
+================================================================================
+The harness audit above proves the SCORING is fair; this proves the TASKS are
+sound — a fair harness over a broken benchmark still reports garbage. Ran the same
+`go test` (stdlib-only, offline) two ways over all 48 tasks:
+
+  - reference solution vs its own hidden test: 48/48 GREEN. Every task is solvable;
+    none silently caps scores because the task itself is unsolvable/mis-specified.
+  - EMPTY impl (package sandbox, nothing else) vs each hidden test: 0/48 pass. No
+    degenerate task — every test genuinely requires the implementation, so none
+    hands every model a free point. (The teeth insight — a green test that defends
+    nothing — applied to the benchmark.)
+  - 48 unique ids, no duplicates, every task carries a reference.
+
+VERDICT: the go_dev_bench is well-formed, fully solvable, and non-degenerate. With
+the corpus (verify_dapt_replay.py), the harness (audit above) and now the data all
+checked, the thesis's numeric foundation is sound on every front. Re-runnable via
+`verify_bench.py data/go_dev_bench.jsonl` after any bench rebuild.
