@@ -276,3 +276,27 @@ WHY THIS REINFORCES THE THESIS rather than threatening it:
 RECOMMENDATION: for a pristine bench, regenerate map_generic / reverse_runes /
 safe_counter with tasks absent from the training corpora, or score on the clean 45.
 Re-runnable: check_contamination.py --bench data/go_dev_bench.jsonl --train <sets...>.
+
+================================================================================
+CONTAMINATION-EXCLUDED RE-BENCH (2026-07-20, greedy / mlx_bench, same env)
+================================================================================
+Acted on the contamination finding: re-ran go-dev base vs specialist (go-dev-mixed-v4)
+on the FULL-48 and on a CLEAN-45 (the 3 verbatim-leaked tasks removed:
+data/go_dev_bench_clean45.jsonl). Greedy decoding, so deterministic.
+
+  full-48    base 39/48 (81.2%)   specialist-v4 34/48 (70.8%)   spec  -5   (-10.4 pp)
+  clean-45   base 37/45 (82.2%)   specialist-v4 31/45 (68.9%)   spec  -6   (-13.3 pp)
+
+  * full-48 reproduces the historical run exactly for base (39) and within 1 for the
+    specialist (34 vs recorded 33) — the harness/env is faithful.
+  * The 3 tainted tasks: base 2/3, specialist 3/3. The specialist alone passed
+    reverse_runes (verbatim in its training); base failed it. Contamination was
+    MASKING part of the specialist's deficit.
+  * Removing it WIDENS the base's lead, -5 -> -6 absolute (-10.4 -> -13.3 pp). On a
+    contamination-free set the specialist is net-NEGATIVE vs base by a wider margin.
+
+VERDICT: the core finding — base >= specialist, the ALGORITHM dominates, the mixed-SFT
+specialist adds nothing (net-negative at greedy) — is CONFIRMED on a clean benchmark,
+and the contamination that could have flattered the specialist was doing exactly that.
+CAVEAT: greedy regime only; the served temp-0.1 tie (base 38 / LoRA 39) is a separate
+decoding regime and a clean-45 served re-run would need the Ollama endpoint (not run).
