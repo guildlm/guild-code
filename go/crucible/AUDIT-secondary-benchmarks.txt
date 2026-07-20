@@ -27,3 +27,24 @@ go-edit) that share the go-dev training corpus; the review and test specialists'
 benches are pristine. Everywhere it appears, contamination inflates the specialist,
 never the base — so it strengthens, never weakens, the "algorithm dominates" reading.
 Re-runnable with verify_bench.py / check_contamination.py per bench.
+
+-----------------------------------------------------------------------------
+go_review_bench keyword-scoring robustness (2026-07-20)
+-----------------------------------------------------------------------------
+mlx_review_bench.py scores identify@1 as `any(keyword.lower() in review.lower())`
+over ~5 concept keywords per task — one match is a pass. Ran the teeth lens on that:
+
+  - ECHO-DEGENERATE 1/8: wrapped_error_eq lists `%w` as a keyword, and `%w` is in the
+    prompt's code being reviewed. A model that merely echoes "%w" passes WITHOUT
+    naming the real bug (== vs errors.Is on a wrapped sentinel).
+  - GENERIC KEYWORDS that match by chance, not diagnosis: defer_in_loop scores on
+    `loop` (any review of looping code says "loop"), double_close on `once`,
+    defer_in_loop also on `leak`. `any()` means one incidental hit = a pass.
+
+IMPACT: inflates ABSOLUTE identify@1, but the weakness applies to base and specialist
+alike, so it does not bias the A/B direction (same shape as the contamination reading).
+The review bench remains a rough, objective signal — just not a tight one.
+
+RECOMMENDATION (do not mutate silently — it would strand any recorded review numbers):
+drop the in-prompt/generic keywords (`%w`, `loop`, `once`, `leak`), or raise the bar
+from `any()` to ">=2 distinct concept keywords", so a pass requires real diagnosis.
