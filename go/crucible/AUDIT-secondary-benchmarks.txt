@@ -128,3 +128,17 @@ test-writing (best +4), while for GENERATION NO go-dev version ever beats base
 overfitting failure mode as the go-dev generation LoRA) => "train the test specialist
 AND gate the checkpoint" (behavior_probe / bench-select the version, don't ship blind).
 Mutation-scored N=18, greedy/deterministic (no sampling noise).
+
+--- go-dev GENERATION recipe sweep (clean-45, greedy, base 37) ---
+  go-dev-mixed-v4  31  (-6)   best
+  go-dev-final     29  (-8)
+  go-dev-mixed-v5  26  (-11)
+  go-dev-mined     21  (-16)  worst (rambled/slow at gen — DAPT chat-integrity signature)
+ALL FOUR recipes net-NEGATIVE; NONE beats base. This makes the skill-dependence
+RECIPE-ROBUST, not a single-adapter fluke:
+  GENERATION   4/4 go-dev recipes net-negative, range [-16, -6] — NO recipe beats base
+  TEST-WRITING 2/3 go-test versions beat base, range [-2, +4]  — good recipes help
+So "capability = model x ALGORITHM" is SKILL-DEPENDENT at the RECIPE-FAMILY level:
+for generation the algorithm (retrieval+gates+repair) makes every specialist recipe
+redundant; for test-writing the model term genuinely helps. Strongest form of the
+result this session. (All greedy/deterministic, mutation- or go-test-scored.)
