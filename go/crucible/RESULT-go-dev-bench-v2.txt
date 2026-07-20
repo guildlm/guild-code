@@ -300,3 +300,16 @@ specialist adds nothing (net-negative at greedy) — is CONFIRMED on a clean ben
 and the contamination that could have flattered the specialist was doing exactly that.
 CAVEAT: greedy regime only; the served temp-0.1 tie (base 38 / LoRA 39) is a separate
 decoding regime and a clean-45 served re-run would need the Ollama endpoint (not run).
+
+--- QUALITATIVE: which tasks the specialist gains vs regresses (full-48, greedy) ---
+GAINS (+3):     reverse_runes (CONTAMINATED — memorised), camel_to_snake, max_generic
+  -> on the CLEAN set only 2 real gains, both narrow string/generic.
+REGRESSIONS (-8): atoi_sum, group_anagrams, group_parity, http_sum_handler, min_heap,
+                  parse_query, rle_decode, upper_reader
+  -> BROAD, NOT confined to errors/concurrency/io: spans parsing, string, map,
+     io (http handler / io.Reader) AND algorithm (min-heap).
+REFINES the earlier "adapter fixes string/generic, breaks errors/concurrency/io" note:
+the regressions are WIDER than that — the mixed-SFT specialist is broad forgetting with
+a couple of narrow string/generic wins, not a clean specialisation tradeoff. Net -5
+(full) / -6 (clean). This is WHY the specialist is net-negative: it does not trade
+breadth for a sharpened niche; it loses breadth for almost no niche gain.
