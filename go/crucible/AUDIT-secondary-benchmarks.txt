@@ -115,3 +115,16 @@ PRACTICAL: retrieval makes a go-DEV generation specialist redundant — invest t
 training budget in the go-TEST specialist, which earns its keep (+3).
 CAVEAT: small benches (N=18/8/6); the go-test +3 is the most robust (mutation, N=18);
 firm up with larger test/edit benches and n>1 samples.
+
+--- go-test specialist VERSION comparison (go_test_bench, mutation, N=18) ---
+  go-test-scaled  11/18  (+4)   <- BEST
+  go-test         10/18  (+3)
+  base             7/18
+  go-test-v2        5/18  (-2)   <- REGRESSES below base (bad checkpoint/recipe)
+2 of 3 versions BEAT base (best +4); one regresses. So the test specialist genuinely
+earns its keep — and this SHARPENS the skill-dependence: the MODEL term helps for
+test-writing (best +4), while for GENERATION NO go-dev version ever beats base
+(iter-400=30, iter-1200=33, base 39). CAVEAT: version-sensitive (v2 -2, the same
+overfitting failure mode as the go-dev generation LoRA) => "train the test specialist
+AND gate the checkpoint" (behavior_probe / bench-select the version, don't ship blind).
+Mutation-scored N=18, greedy/deterministic (no sampling noise).
