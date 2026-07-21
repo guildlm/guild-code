@@ -314,3 +314,30 @@ CONCLUSION for this file's cross-specialist table: the go-review row (-1) should
 as NO MEASURED DIFFERENCE, not as a regression. Combined with the test-writing correction
 above, every claimed specialist effect on the secondary benches has now either reversed
 (test-writing) or evaporated (review) once the measurement was repaired.
+
+--- CORRECTION: the "both components" cell at n=3 (2026-07-22) ---
+The sweep table's both-components row was a single sample per model, and it was noisy.
+Repeated 3x (best-of-4/valid + goimports, t=0.6, --max-tokens 2000):
+
+  original bench   base 17, 17, 17  = 17.0     specialist 16, 17, 18  = 17.0   -> TIED
+  hard bench       base 10, 11, 11  = 10.7     specialist  7,  9, 10  =  8.7
+  valid tests      base 17, 17, 17  = 17.0     specialist 16, 17, 18  = 17.3
+  caught-given-valid  base ~63%                specialist ~50%
+
+So the earlier "16 vs 14, base ahead" was sampling noise and is WITHDRAWN. On the original
+bench, full algorithm strength SATURATES both models at 17.0/18 — identical. That is a
+stronger form of the thesis than a base win: with the algorithm strong enough, which model
+you drop in stops mattering, matching the pure-model A/B where the gated Builder shipped
+both models green.
+
+The hard bench still separates them, and the mechanism has changed. At greedy, the gap was
+pure validity (blind counts were equal at 5-5). Here validity has EQUALISED — 17.0 vs 17.3
+valid tests — so the remaining gap is TEETH, and it favours the BASE: 63% vs 50% of valid
+tests catch the edge-case bug. base's worst replicate (10) equals the specialist's best.
+
+Net across the session: the test specialist has no advantage in any cell where the
+algorithm is present, and on the only bench that discriminates test quality its tests are
+somewhat WEAKER. Its measured value was validity, which the algorithm supplies for free.
+
+CAVEAT: n=3 at N=18 is still small; the hard-bench ordering is consistent across all three
+pairs but the per-replicate ranges touch at 10.
