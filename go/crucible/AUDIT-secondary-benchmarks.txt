@@ -142,3 +142,89 @@ So "capability = model x ALGORITHM" is SKILL-DEPENDENT at the RECIPE-FAMILY leve
 for generation the algorithm (retrieval+gates+repair) makes every specialist recipe
 redundant; for test-writing the model term genuinely helps. Strongest form of the
 result this session. (All greedy/deterministic, mutation- or go-test-scored.)
+
+=============================================================================
+THE ALGORITHM TERM ON TEST-WRITING (2026-07-21, greedy/deterministic, N=18)
+Corrects this file's own "TEST-WRITING: the MODEL term dominates (+3/+4)".
+=============================================================================
+That conclusion compared a RAW base against a trained specialist. It applied no part
+of the algorithm to either — while the whole thesis is that capability = model x
+ALGORITHM. This re-measures it with the cheapest algorithm component switched on.
+
+--- 1. What the misses actually were -------------------------------------------------
+Every run now splits a miss into INVALID (never produced a test that passes on the code
+under test) vs BLIND (valid test, does not notice the bug). On go_test_bench:
+
+  arm (greedy)          score    valid   caught-given-valid   goimports fired
+  base                  7/18     7/18         7/7  (100%)     -
+  base + goimports     14/18    14/18        14/14 (100%)     10 candidates
+  go-test-scaled       11/18    11/18        11/11 (100%)     -
+  go-test-scaled +go.. 11/18    11/18        11/11 (100%)      0 candidates
+
+caught-given-valid is 100% in ALL FOUR arms: nothing that ran ever failed to kill its
+mutant. So this bench was never scoring test quality — it scored whether the model emits
+valid Go. Every "miss" was an invalid file.
+
+The base's invalid files are mostly ONE mechanical defect. For `add` it wrote a correct
+table test that kills the a-b mutant easily, and used fmt.Sprintf without importing fmt.
+Running goimports first — deterministic, and what the real Builder loop already does with
+a gate — takes the base 7 -> 14, PAST the specialist's 11. goimports changed 10 base
+candidates and 0 specialist candidates: the specialist's trained skill is precisely
+"emit valid Go", and a gate supplies the same thing for free.
+
+--- 2. A bench that can measure teeth ------------------------------------------------
+Since every valid test caught its mutant, go_test_bench cannot rank test quality. Its
+mutants are gross (whole function -> `return a`). go_test_bench_hard.jsonl replaces each
+with an edge-case-only bug (empty, single element, boundary, negative, non-ASCII,
+nil-vs-empty, integer division), every one validated: a witness test passes on correct
+and fails on the mutant (real+reachable), and a naive happy-path test passes on BOTH
+(genuinely survives shallow testing). 18/18 validated; the bench is solvable 18/18 by its
+own witness tests. MEASURED, not asserted: 16/18 of the ORIGINAL mutants die to a single
+happy-path assertion. The 2 that do not (reverse_runes rune-vs-byte, median even-length)
+were already subtle — that check was a hard failure at first and stopped an overclaim.
+
+Re-scored OFFLINE from the saved generations (zero tokens generated):
+
+  arm (hard bench)      caught   blind(v)   invalid(-)   caught-given-valid
+  base                   4/18       3            11           4/7  (57%)
+  base + goimports       9/18       5             4           9/14 (64%)
+  go-test-scaled         6/18       5             7           6/11 (55%)
+  go-test-scaled +go..   6/18       5             7           6/11 (55%)
+
+base+goimports and the specialist are BLIND ON EXACTLY THE SAME NUMBER OF TASKS (5 and 5).
+The entire gap between them is validity, at BOTH mutant strengths. The specialist does not
+write tests with more teeth; it writes more tests that run.
+
+--- 3. Robustness / what was fixed to get here ---------------------------------------
+- Identical scores at --max-tokens 1200 and 2000, so nothing here rests on the cap.
+- Greedy everywhere: deterministic, no sampling noise. base 7/18 and go-test-scaled 11/18
+  reproduce the historical numbers exactly.
+- HARNESS BUG FIXED FIRST: a generation that hit max_tokens mid-fence left the ```go line
+  in the extracted source, guaranteeing a parse error scored as "cannot write Go". The
+  bias was one-directional — it taxed whichever model writes longer tests, i.e. the test
+  specialist. Fixed and counted before any of the above was measured.
+- The specialist's one remaining truncation is a runaway repetition (a table of
+  {1000000000000000000000000000000, false} literals that overflow int), not a long
+  legitimate test. A real model failure, not a harness limit.
+- best-of-N as previously committed selected candidates by peeking at the planted mutant.
+  That is an upper bound no production loop can reach; --select valid adds the realizable
+  rule (ship the first test that passes on the code under test).
+
+--- 4. Revised conclusion ------------------------------------------------------------
+The skill-dependence claim in this file WEAKENS sharply. The specialist's apparent +3/+4
+on test-writing is a VALIDITY premium, not a testing-skill premium, and the cheapest
+deterministic gate in the algorithm buys the same premium for the base — after which the
+base LEADS (14 vs 11 gross-mutant, 9 vs 6 hard). Together with generation (4/4 recipes
+net-negative), the picture is now UNIFORM rather than skill-dependent: the ALGORITHM
+dominates, and what the specialist contributes is mostly "produces runnable code", which
+a gate provides for free and without a training run.
+
+PRACTICAL: before training a specialist for a skill, measure how much of its edge is
+validity that a deterministic gate could supply. Here it was all of it.
+
+CAVEATS: N=18, one greedy sample per task. The hard mutants were authored from the
+reference implementations' edge cases, but AFTER seeing which tasks each model missed, so
+author bias cannot be excluded by construction — the strongest evidence against it is the
+blind-count symmetry (5 vs 5), which no biased mutant choice would produce. Sampling arms
+(best-of-N/valid) at these settings are not yet run. Specialist tested is go-test-scaled,
+its best version (+4 historically).
