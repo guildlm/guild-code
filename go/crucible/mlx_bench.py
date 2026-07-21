@@ -60,6 +60,9 @@ def main() -> int:
     ap.add_argument("--temp", type=float, default=0.0,
                     help="sampling temperature; 0 = greedy/deterministic (default), "
                          ">0 reproduces the served regime locally (nondeterministic).")
+    ap.add_argument("--save-generations", metavar="PATH",
+                    help="write each generated implementation to JSONL, so a scoring or "
+                         "bench change can be re-measured without a model run")
     args = ap.parse_args()
 
     from mlx_lm import generate, load
@@ -87,7 +90,7 @@ def main() -> int:
     tasks = [json.loads(l) for l in open(args.bench)]
     print(f"mlx bench: {len(tasks)} tasks · model={label} · {regime}\n")
 
-    passed, detail = 0, []
+    passed, detail, saved = 0, [], []
     for t in tasks:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": t["prompt"]}]
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
@@ -96,15 +99,24 @@ def main() -> int:
             if sampler is not None:
                 gkw["sampler"] = sampler
             out = generate(model, tokenizer, prompt=prompt, **gkw)
-            ok = runs_green(extract_code(out), t["metadata"]["tests"])
+            code = extract_code(out)
+            ok = runs_green(code, t["metadata"]["tests"])
         except Exception as e:  # generation/runtime error counts as a miss
             ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
             continue
         passed += ok
         detail.append(f"{'+' if ok else '-'}{t['id']}")
+        if args.save_generations:
+            saved.append({"id": t["id"], "label": label, "regime": regime,
+                          "verdict": ok, "code": code})
 
     print(f"{label}: pass@1 = {passed}/{len(tasks)}  [{' '.join(detail)}]")
+    if args.save_generations:
+        with open(args.save_generations, "w") as f:
+            for row in saved:
+                f.write(json.dumps(row) + "\n")
+        print(f"  wrote {len(saved)} generations -> {args.save_generations} (re-scorable model-free)")
     return 0
 
 
