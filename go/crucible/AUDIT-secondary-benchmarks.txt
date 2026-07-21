@@ -228,3 +228,31 @@ author bias cannot be excluded by construction — the strongest evidence agains
 blind-count symmetry (5 vs 5), which no biased mutant choice would produce. Sampling arms
 (best-of-N/valid) at these settings are not yet run. Specialist tested is go-test-scaled,
 its best version (+4 historically).
+
+=============================================================================
+go_review_bench SCORING PROBED (2026-07-21, model-free) — worse than suspected
+=============================================================================
+This file recorded the keyword scoring as a SUSPICION: generic keywords (loop / once /
+leak / shared) that "a rambling review could hit by chance", plus 1/8 echo-degenerate.
+probe_review_scoring.py measures it by scoring canned reviews that identify NO defect:
+
+  probe                             keyword@1   keyword@2   discriminative@1
+  VAGUE   (plausible non-answer)      0/8         0/8            0/8
+  SHOTGUN (generic Go checklist)      7/8         6/8            0/8
+
+A checklist that understands nothing scores 7/8 — EQUAL to the recorded base score (7/8)
+and ABOVE the specialist (6/8). Requiring >=2 keywords, the fix this file proposed, only
+takes it to 6/8. So the recorded review numbers do not separate comprehension from Go
+vocabulary, and the "-1 specialist regression" on this bench is not evidence about review
+skill in either direction. VAGUE scoring 0/8 shows the bench is not entirely broken: it
+demands Go vocabulary, it just cannot tell vocabulary from understanding.
+
+FIX AVAILABLE: --score discriminative requires a review to match its OWN task's keywords
+strictly more than every other task's. A shotgun hits all eight sets and is never a strict
+argmax: 7/8 -> 0/8. POSITIVE CONTROL (a rule that zeroes everything would pass the probes
+too): three reviews that genuinely pinpoint one defect each still score, 3/3. Default
+remains 'keyword' so recorded numbers stay comparable.
+
+Re-scoring the recorded review numbers under the strict rule costs one model run, because
+those runs predate --save-generations. Both other benches now persist generations too, so
+this is the last scoring question in the pipeline that requires a GPU.
