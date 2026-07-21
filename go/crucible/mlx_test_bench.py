@@ -46,6 +46,45 @@ def _go_test(impl: str, test: str) -> bool:
         return p.returncode == 0
 
 
+def _verdict(cands, select: str) -> bool:
+    """Score one task from its candidate tests. cands: [(passes_correct, catches_mutant)].
+
+    oracle — count a catch if ANY candidate catches the planted bug. The selector peeks
+             at the mutant, which a real loop cannot do, so this is an UPPER BOUND on
+             the algorithm term, not a shippable number.
+    valid  — REALIZABLE selector: ship the FIRST candidate that passes against the code
+             under test (all a real loop can check without knowing the bug), and score
+             only that one. This is what best-of-N actually buys in production.
+    """
+    if select == "oracle":
+        return any(catches for _, catches in cands)
+    for passes_correct, catches in cands:
+        if passes_correct:
+            return catches
+    return False
+
+
+def _self_test() -> int:
+    """Model-free truth table for _verdict — the selector is the whole experiment."""
+    cases = [
+        # (cands, oracle, valid)
+        ([], False, False),
+        ([(False, False)], False, False),
+        ([(True, False)], False, False),
+        ([(True, True)], True, True),
+        # first valid candidate misses; a later one catches -> oracle sees it, valid ships the miss
+        ([(True, False), (True, True)], True, False),
+        # invalid candidates are skipped by both, then a catcher
+        ([(False, False), (True, True)], True, True),
+    ]
+    for cands, want_oracle, want_valid in cases:
+        got_o, got_v = _verdict(cands, "oracle"), _verdict(cands, "valid")
+        assert got_o == want_oracle, f"oracle{cands}: {got_o} != {want_oracle}"
+        assert got_v == want_valid, f"valid{cands}: {got_v} != {want_valid}"
+    print(f"_verdict self-test: {len(cases)} cases OK (oracle >= valid on all)")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="mlx-community/Qwen2.5-Coder-7B-Instruct-4bit")
@@ -59,7 +98,16 @@ def main() -> int:
                          "catches the bug. N>1 samples with temperature.")
     ap.add_argument("--temp", type=float, default=0.0,
                     help="sampling temperature (auto 0.6 when --best-of>1 and left at 0).")
+    ap.add_argument("--select", choices=("oracle", "valid"), default="oracle",
+                    help="candidate selector for --best-of: 'oracle' peeks at the planted "
+                         "mutant (upper bound); 'valid' ships the first test that passes on "
+                         "the code under test (realizable in a production loop).")
+    ap.add_argument("--self-test", action="store_true",
+                    help="run the model-free selector truth table and exit")
     args = ap.parse_args()
+
+    if args.self_test:
+        return _self_test()
 
     from mlx_lm import generate, load
     from mlx_lm.sample_utils import make_sampler
@@ -75,7 +123,7 @@ def main() -> int:
     label = os.path.basename(args.adapter) if args.adapter else "BASE (untuned)"
     temp = args.temp if args.temp > 0 else (0.6 if args.best_of > 1 else 0.0)
     sampler = make_sampler(temp=temp) if temp > 0 else None
-    tag = f"best-of-{args.best_of}@t{temp}" if args.best_of > 1 else "greedy"
+    tag = f"best-of-{args.best_of}@t{temp}/{args.select}" if args.best_of > 1 else "greedy"
     tasks = [json.loads(l) for l in open(args.bench)]
     print(f"mlx test-bench (mutation): {len(tasks)} tasks · model={label}\n")
 
@@ -84,16 +132,20 @@ def main() -> int:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": t["prompt"]}]
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
         try:
-            ok = False
+            cands = []
             for _ in range(args.best_of):
                 gkw = {"max_tokens": args.max_tokens, "verbose": False}
                 if sampler is not None:
                     gkw["sampler"] = sampler
                 test = extract_code(generate(model, tokenizer, prompt=prompt, **gkw))
                 # Catches the bug iff it passes on correct AND fails on the mutant.
-                if _go_test(t["metadata"]["correct"], test) and not _go_test(t["metadata"]["mutant"], test):
-                    ok = True
-                    break  # best-of-N: one catch is enough
+                passes = _go_test(t["metadata"]["correct"], test)
+                cands.append((passes, passes and not _go_test(t["metadata"]["mutant"], test)))
+                # Stop as soon as this selector has its answer: a catch (oracle) or a
+                # shippable test (valid). Anything after that can't change the verdict.
+                if _verdict(cands, args.select) or (args.select == "valid" and cands[-1][0]):
+                    break
+            ok = _verdict(cands, args.select)
         except Exception as e:
             ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
