@@ -20,6 +20,7 @@ import tempfile
 
 MODULE = "sandbox"
 _FENCE = re.compile(r"```(?:go|golang)?\s*\n(.*?)```", re.DOTALL)
+_FENCE_OPEN = re.compile(r"```(?:go|golang)?\s*\n")
 SYSTEM = (
     "You are a Go test-writing specialist. Output one complete Go test file in a "
     "single ```go block, package sandbox, standard library testing only, no "
@@ -29,7 +30,22 @@ SYSTEM = (
 
 def extract_code(text: str) -> str:
     m = _FENCE.search(text)
-    return (m.group(1) if m else text).strip() + "\n"
+    if m:
+        return m.group(1).strip() + "\n"
+    # Unterminated fence: the model hit max_tokens before closing it. The old fallback
+    # returned the raw text, keeping the ```go line, which guarantees "expected 'package'"
+    # and scores a HARNESS truncation as "the model cannot write Go". Strip the opener so
+    # the salvageable prefix is judged on its merits (still truncated, but honestly so).
+    m = _FENCE_OPEN.search(text)
+    if m:
+        return text[m.end():].strip() + "\n"
+    return text.strip() + "\n"
+
+
+def _truncated(text: str) -> bool:
+    """A fence that opens and never closes means generation ran out of tokens. Silent
+    truncation biases the bench against verbose models, so it must be reported."""
+    return _FENCE.search(text) is None and _FENCE_OPEN.search(text) is not None
 
 
 def _go_test(impl: str, test: str) -> bool:
@@ -147,6 +163,19 @@ def _self_test() -> int:
     print(f"_verdict self-test: {len(cases)} cases OK (oracle >= valid on all)")
     print(f"_tag self-test: {len(tags)} cases OK")
 
+    # extract_code — the unterminated-fence case cost a real task (is_prime) a point.
+    closed = "sure!\n```go\npackage sandbox\n\nfunc TestX(t *testing.T) {}\n```\ndone"
+    assert extract_code(closed).startswith("package sandbox"), extract_code(closed)
+    assert not _truncated(closed)
+    cut = "```go\npackage sandbox\n\nfunc TestX(t *testing.T) {\n\tcases := []int{1,"
+    assert extract_code(cut).startswith("package sandbox"), extract_code(cut)
+    assert "```" not in extract_code(cut), "unterminated fence leaked into the source"
+    assert _truncated(cut), "unterminated fence must be reported as truncated"
+    bare = "package sandbox\n\nfunc TestX(t *testing.T) {}\n"
+    assert extract_code(bare).startswith("package sandbox")
+    assert not _truncated(bare)
+    print("extract_code self-test: closed / unterminated / bare fences OK")
+
     # The repair arm, on the real defect that motivated it: a correct table test that
     # uses fmt.Sprintf without importing fmt (verbatim shape of the base's `add` miss).
     exe = _goimports()
@@ -224,7 +253,7 @@ def main() -> int:
     tasks = [json.loads(l) for l in open(args.bench)]
     print(f"mlx test-bench (mutation): {len(tasks)} tasks · model={label}\n")
 
-    passed, valid_n, n_repaired, detail, saved = 0, 0, 0, [], []
+    passed, valid_n, n_repaired, n_truncated, detail, saved = 0, 0, 0, 0, [], []
     for t in tasks:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": t["prompt"]}]
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
@@ -234,7 +263,9 @@ def main() -> int:
                 gkw = {"max_tokens": args.max_tokens, "verbose": False}
                 if sampler is not None:
                     gkw["sampler"] = sampler
-                test = extract_code(generate(model, tokenizer, prompt=prompt, **gkw))
+                raw = generate(model, tokenizer, prompt=prompt, **gkw)
+                n_truncated += _truncated(raw)
+                test = extract_code(raw)
                 if imports_exe:
                     repaired = _repair_imports(test, imports_exe)
                     n_repaired += repaired != test
@@ -274,6 +305,9 @@ def main() -> int:
     if imports_exe:
         # If the repair never fired, the arm is vacuous and its score means nothing.
         print(f"  repair: goimports changed {n_repaired} candidate(s)")
+    if n_truncated:
+        print(f"  WARNING: {n_truncated} candidate(s) hit --max-tokens ({args.max_tokens}) "
+              f"mid-fence — raise it or this penalises verbose models")
     if args.save_generations:
         with open(args.save_generations, "w") as f:
             for row in saved:
