@@ -21,6 +21,32 @@ SYSTEM = (
 )
 
 
+def hits(review: str, keywords) -> list:
+    low = review.lower()
+    return [k for k in keywords if k.lower() in low]
+
+
+def scores(review: str, tid: str, bench: dict, rule: str, min_kw: int) -> bool:
+    """Did this review identify THIS task's defect?
+
+    keyword        — the original rule: >= min_kw of the task's keywords appear anywhere.
+                     Gameable: probe_review_scoring.py shows a canned Go-pitfalls checklist
+                     that identifies nothing scores 7/8 under it (6/8 even at min_kw=2),
+                     i.e. at or above the real recorded scores. It cannot separate
+                     comprehension from vocabulary.
+    discriminative — the review must name THIS defect MORE than any other task's defect:
+                     its own keyword set must be the strict argmax across the bench. A
+                     shotgun review hits every task's set, so it is never a strict argmax
+                     and scores nothing, while a review that pinpoints one defect wins.
+    """
+    own = len(hits(review, bench[tid]))
+    if own < min_kw:
+        return False
+    if rule == "keyword":
+        return True
+    return all(own > len(hits(review, kws)) for other, kws in bench.items() if other != tid)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="mlx-community/Qwen2.5-Coder-7B-Instruct-4bit")
@@ -34,6 +60,11 @@ def main() -> int:
                          "found generic keywords (loop/once/leak) that a rambling review can "
                          "hit by chance; >=2 is the stricter rule. Default 1 keeps every "
                          "recorded number comparable — do not change the default.")
+    ap.add_argument("--score", choices=("keyword", "discriminative"), default="keyword",
+                    help="scoring rule. 'keyword' is the original (and the recorded numbers' "
+                         "rule) — keep it to stay comparable. 'discriminative' requires the "
+                         "review to match its OWN task's keywords more than every other "
+                         "task's, which a generic checklist cannot do.")
     ap.add_argument("--save-generations", metavar="PATH",
                     help="write each review plus the keywords it matched to JSONL, so a "
                          "scoring-rule change can be re-measured without a model run")
@@ -51,7 +82,8 @@ def main() -> int:
         tokenizer.eos_token_ids.add(im_end[0])
     label = os.path.basename(args.adapter) if args.adapter else "BASE (untuned)"
     tasks = [json.loads(l) for l in open(args.bench)]
-    print(f"mlx review-bench: {len(tasks)} tasks · model={label}\n")
+    bench_keywords = {t["id"]: t["metadata"]["keywords"] for t in tasks}
+    print(f"mlx review-bench: {len(tasks)} tasks · model={label} · scoring={args.score}\n")
 
     passed, detail, saved = 0, [], []
     for t in tasks:
@@ -59,8 +91,8 @@ def main() -> int:
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
         try:
             out = generate(model, tokenizer, prompt=prompt, max_tokens=args.max_tokens, verbose=False).lower()
-            hits = [k for k in t["metadata"]["keywords"] if k.lower() in out]
-            ok = len(hits) >= args.min_keywords
+            matched = hits(out, t["metadata"]["keywords"])
+            ok = scores(out, t["id"], bench_keywords, args.score, args.min_keywords)
         except Exception as e:
             ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
@@ -68,10 +100,11 @@ def main() -> int:
         passed += ok
         detail.append(f"{'+' if ok else '-'}{t['id']}")
         if args.save_generations:
-            saved.append({"id": t["id"], "label": label, "verdict": ok, "matched": hits,
+            saved.append({"id": t["id"], "label": label, "verdict": ok, "matched": matched,
                           "keywords": t["metadata"]["keywords"], "review": out})
 
     rule = "" if args.min_keywords == 1 else f" (>= {args.min_keywords} keywords)"
+    rule += "" if args.score == "keyword" else " [discriminative]"
     print(f"{label}: identify@1{rule} = {passed}/{len(tasks)}  [{' '.join(detail)}]")
     if args.save_generations:
         with open(args.save_generations, "w") as f:
