@@ -21,7 +21,11 @@ import sys
 import tempfile
 
 MODULE = "sandbox"
-_FENCE = re.compile(r"```(?:go|golang)?\s*\n(.*?)```", re.DOTALL)
+
+# Shared with the test bench rather than copied: these helpers encode harness decisions
+# (what counts as truncated, how a missing import is repaired) that must not drift between
+# the two benches. Importing is cheap — mlx_test_bench imports mlx_lm inside main().
+from mlx_test_bench import _goimports, _repair_imports, _truncated, extract_code  # noqa: E402
 
 SYSTEM = (
     "You are a Go development specialist. Output one complete Go file in a single "
@@ -29,9 +33,20 @@ SYSTEM = (
 )
 
 
-def extract_code(text: str) -> str:
-    m = _FENCE.search(text)
-    return (m.group(1) if m else text).strip() + "\n"
+def compiles(code: str) -> bool:
+    """Is this valid Go at all? Splits a pass@1 miss into a mechanical failure (did not
+    build) and a real one (built, wrong behaviour) — the same decomposition that showed
+    the test bench was scoring validity rather than skill."""
+    with tempfile.TemporaryDirectory() as d:
+        open(os.path.join(d, "go.mod"), "w").write(f"module {MODULE}\n\ngo 1.23\n")
+        open(os.path.join(d, "impl.go"), "w").write(code)
+        env = dict(os.environ, GOPROXY="off", GOFLAGS="-mod=mod")
+        try:
+            p = subprocess.run(["go", "build", "./..."], cwd=d, capture_output=True,
+                               text=True, timeout=60, env=env)
+        except subprocess.TimeoutExpired:
+            return False
+        return p.returncode == 0
 
 
 def runs_green(code: str, test: str) -> bool:
@@ -60,6 +75,10 @@ def main() -> int:
     ap.add_argument("--temp", type=float, default=0.0,
                     help="sampling temperature; 0 = greedy/deterministic (default), "
                          ">0 reproduces the served regime locally (nondeterministic).")
+    ap.add_argument("--repair", choices=("none", "imports"), default="none",
+                    help="deterministic repair before scoring: 'imports' runs goimports, the "
+                         "cheapest ALGORITHM component and one the real Builder loop already "
+                         "performs with a gate.")
     ap.add_argument("--save-generations", metavar="PATH",
                     help="write each generated implementation to JSONL, so a scoring or "
                          "bench change can be re-measured without a model run")
@@ -90,7 +109,13 @@ def main() -> int:
     tasks = [json.loads(l) for l in open(args.bench)]
     print(f"mlx bench: {len(tasks)} tasks · model={label} · {regime}\n")
 
-    passed, detail, saved = 0, [], []
+    imports_exe = ""
+    if args.repair == "imports":
+        imports_exe = _goimports()
+        if not imports_exe:
+            raise SystemExit("--repair imports requested but goimports was not found")
+
+    passed, built, n_repaired, n_truncated, detail, saved = 0, 0, 0, 0, [], []
     for t in tasks:
         messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": t["prompt"]}]
         prompt = tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=False)
@@ -99,19 +124,36 @@ def main() -> int:
             if sampler is not None:
                 gkw["sampler"] = sampler
             out = generate(model, tokenizer, prompt=prompt, **gkw)
+            n_truncated += _truncated(out)
             code = extract_code(out)
+            if imports_exe:
+                repaired = _repair_imports(code, imports_exe)
+                n_repaired += repaired != code
+                code = repaired
             ok = runs_green(code, t["metadata"]["tests"])
+            builds = ok or compiles(code)
         except Exception as e:  # generation/runtime error counts as a miss
             ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
             continue
         passed += ok
-        detail.append(f"{'+' if ok else '-'}{t['id']}")
+        built += builds
+        # '+' passes · 'v' compiles but fails the hidden test · '-' is not valid Go
+        detail.append(f"{'+' if ok else ('v' if builds else '-')}{t['id']}")
         if args.save_generations:
             saved.append({"id": t["id"], "label": label, "regime": regime,
-                          "verdict": ok, "code": code})
+                          "verdict": ok, "compiles": builds, "code": code})
 
-    print(f"{label}: pass@1 = {passed}/{len(tasks)}  [{' '.join(detail)}]")
+    n = len(tasks)
+    rate = f"{passed}/{built}" if built else "n/a"
+    print(f"{label}: pass@1 = {passed}/{n}  [{' '.join(detail)}]")
+    print(f"  decomposition: compiles {built}/{n} · passes-given-compiles {rate}"
+          f"  (+passes v=wrong -=invalid)")
+    if imports_exe:
+        print(f"  repair: goimports changed {n_repaired} generation(s)")
+    if n_truncated:
+        print(f"  WARNING: {n_truncated} generation(s) hit --max-tokens ({args.max_tokens}) "
+              f"mid-fence — raise it or this penalises verbose models")
     if args.save_generations:
         with open(args.save_generations, "w") as f:
             for row in saved:
