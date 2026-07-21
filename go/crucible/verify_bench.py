@@ -44,6 +44,35 @@ def runs_green(code: str, test: str) -> bool:
         return p.returncode == 0
 
 
+def check_test_bench(tasks):
+    """Same two failure modes for a TEST-WRITING bench, where the artefact under test is
+    the test rather than the implementation.
+
+      BROKEN     — the task's own witness test does not pass on the correct impl AND fail
+                   on the mutant, i.e. the planted bug is unreachable and no model can
+                   score it.
+      DEGENERATE — the mutant dies to the task's naive happy-path test, so any test that
+                   merely runs scores the point. That is the flaw measured on the original
+                   go_test_bench: 16/18 of its mutants are gross, which is why every arm
+                   there reported caught-given-valid of 100%.
+
+    Only checkable when the bench carries witness_test / naive_test (go_test_bench_hard
+    does; the original does not, which is itself worth reporting).
+    """
+    broken, degenerate, unchecked = [], [], []
+    for t in tasks:
+        m = t["metadata"]
+        witness, naive = m.get("witness_test"), m.get("naive_test")
+        if not witness or not naive:
+            unchecked.append(t["id"])
+            continue
+        if not (runs_green(m["correct"], witness) and not runs_green(m["mutant"], witness)):
+            broken.append(t["id"])
+        if not runs_green(m["mutant"], naive):
+            degenerate.append(t["id"])
+    return broken, degenerate, unchecked
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print("usage: verify_bench.py <bench.jsonl>")
@@ -51,6 +80,26 @@ def main() -> int:
     tasks = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
     ids = [t["id"] for t in tasks]
     dups = sorted({i for i in ids if ids.count(i) > 1})
+
+    if tasks and "tests" not in tasks[0]["metadata"]:
+        broken, degenerate, unchecked = check_test_bench(tasks)
+        print(f"tasks {len(tasks)}  unique ids {len(set(ids))}  duplicates {dups or 'none'}")
+        print(f"[test-writing bench] witness does not isolate the bug (BROKEN): "
+              f"{len(broken)} {broken}")
+        print(f"[test-writing bench] mutant dies to a naive test (DEGENERATE): "
+              f"{len(degenerate)} {degenerate}")
+        print(f"no witness/naive fields (unchecked): {len(unchecked)} {unchecked}")
+        bad = bool(dups or broken or degenerate)
+        if unchecked and len(unchecked) == len(tasks):
+            # A gate that verified NOTHING must never print OK. This branch fired on the
+            # original go_test_bench, which carries no witness/naive tests — reporting it
+            # green would be the same vacuous pass this whole gate exists to catch.
+            print("\nUNVERIFIABLE — no task carries witness/naive tests, so nothing was "
+                  "checked. Build a hard bench (build_go_test_bench_hard.py) to gate this.")
+            return 1
+        print("\n" + ("OK — every mutant is reachable and survives a shallow test."
+                      if not bad else "FAIL — see lists above."))
+        return 1 if bad else 0
 
     broken, degenerate, no_ref = [], [], []
     for t in tasks:
@@ -69,6 +118,12 @@ def main() -> int:
     print(f"no reference field (unchecked solvable): {len(no_ref)} {no_ref}")
 
     bad = bool(dups or broken or degenerate)
+    if no_ref and len(no_ref) == len(tasks):
+        # Same rule as the test-writing branch: with no reference anywhere, solvability was
+        # never checked, so "OK" would be a green that verified nothing.
+        print("\nUNVERIFIABLE — no task carries a reference solution, so solvability was "
+              "never checked (the degenerate check still ran).")
+        return 1
     print("\n" + ("OK — every task is solvable and non-degenerate."
                   if not bad else "FAIL — see broken/degenerate/duplicate lists above."))
     return 1 if bad else 0
