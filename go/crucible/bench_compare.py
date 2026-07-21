@@ -24,12 +24,12 @@ import tempfile
 import urllib.request
 
 MODULE = "sandbox"
-_FENCE = re.compile(r"```(?:go|golang)?\s*\n(.*?)```", re.DOTALL)
 
-
-def extract_code(text: str) -> str:
-    m = _FENCE.search(text)
-    return (m.group(1) if m else text).strip() + "\n"
+# Shared with the MLX benches rather than copied: the unterminated-fence fallback is a
+# harness decision that must not differ between the served and local harnesses, or an A/B
+# run across the two compares scoring bugs instead of models. Importing costs nothing —
+# mlx_lm is imported inside mlx_test_bench.main(), not at module scope.
+from mlx_test_bench import _truncated, extract_code  # noqa: E402
 
 
 def ask(base_url: str, model: str, prompt: str, api_key: str) -> str:
@@ -86,11 +86,13 @@ def main() -> int:
 
     scores: dict[str, int] = {}
     for model in models:
-        passed, detail = 0, []
+        passed, n_truncated, detail = 0, 0, []
         for t in tasks:
             test = t["metadata"]["tests"]
             try:
-                code = extract_code(ask(args.base_url, model, t["prompt"], args.api_key))
+                raw = ask(args.base_url, model, t["prompt"], args.api_key)
+                n_truncated += _truncated(raw)
+                code = extract_code(raw)
                 ok = runs_green(code, test)
             except Exception as e:  # network/model error counts as a miss
                 detail.append(f"{t['id']}:ERR({type(e).__name__})")
@@ -99,6 +101,9 @@ def main() -> int:
             detail.append(f"{'+' if ok else '-'}{t['id']}")
         scores[model] = passed
         print(f"{model:>28}  pass@1 = {passed}/{len(tasks)}  [{' '.join(detail)}]")
+        if n_truncated:
+            print(f"{'':>28}  WARNING: {n_truncated} response(s) ended mid-fence — the "
+                  f"served output cap penalises verbose models")
 
     best_other = max((s for m, s in scores.items() if m != models[0]), default=-1)
     spec = scores[models[0]]
