@@ -349,3 +349,53 @@ backend-artifact conclusion — greedy and temp-0.1 give essentially the SAME ga
 "served tie" was entirely a backend (Ollama-GGUF) effect. Corrected magnitudes:
   greedy    full -5   clean -6
   temp-0.1  full -5   clean ~-6.7 (n=3)     [earlier -9 was a single low sample]
+
+=============================================================================
+GENERATION RE-MEASURED WITH THE HARNESS REPAIRED (2026-07-22, greedy, N=48)
+=============================================================================
+Two harness defects found on the test bench exist here too, in the harness that produced
+this file's headline numbers:
+
+1. UNTERMINATED FENCE. A generation cut off at --max-tokens left the ```go line in the
+   extracted source, so it could never compile and scored as a model failure. One
+   directional bias, against whichever model rambles. Fixed (mlx_bench now shares the test
+   bench's helpers) and truncation is counted: base truncates 0 generations, go-dev-mined
+   3, mixed-v4 1 — confirming the bias landed on the specialists. Recorded go-dev-mined
+   21/48 becomes 23/48 with the fence honoured.
+2. pass@1 FUSED TWO FAILURE MODES. Runs now report compiles / passes-given-compiles.
+
+  model              pass@1   compiles   passes-given-compiles
+  base                39/48     42/48          39/42  (93%)
+  go-dev-mixed-v4     33/48     35/48          33/35  (94%)
+  go-dev-mined        23/48     35/48          23/35  (66%)
+
+base 39 and mixed-v4 33 reproduce the recorded numbers exactly. And the decomposition is
+the finding: base and mixed-v4 are INDISTINGUISHABLE at turning compiling code into
+passing code (93% vs 94%). The whole recorded -6 sits in whether the file compiles at all
+(42 vs 35). The specialist's generation deficit is not worse logic; it is worse Go hygiene.
+
+--- with the cheapest deterministic gate (goimports) ---
+Scored OFFLINE from the saved generations — greedy decoding is deterministic, so a
+post-hoc deterministic repair never needs the model again (this replaced a queued ~20
+minute GPU re-run with seconds; fidelity checked first: re-scoring with no repair
+reproduces the live run, 0 verdicts changed).
+
+  model            pass@1   ->  +imports   compiles      goimports fired
+  base              39/48         44/48     47/48           17 generations
+  go-dev-mixed-v4   33/48         40/48     44/48           11 generations
+  go-dev-mined      23/48         24/48     36/48            3 generations
+
+Base's 6 non-compiling generations were 5 unused imports + 1 missing fmt; only
+ctx_cancel_worker (an unused VARIABLE) is beyond goimports. mixed-v4's were 10/13 import
+hygiene, mined's only 3/13 (the rest syntax and truncation — genuinely broken output).
+
+CONCLUSION, and it differs from the test bench. On test-writing the same repair REVERSED
+the verdict (the specialist's entire edge was validity). On GENERATION it only SHRINKS the
+gap: -6 becomes -4 (44 vs 40). So the go-dev specialist is genuinely weaker at generation,
+not merely penalised by a mechanical artefact — the earlier conclusion SURVIVES, with a
+smaller effect size and a cleaner mechanism. I predicted mixed-v4 would reach ~43 from its
+10/13 import-hygiene failures; it reached 40, so goimports fixed the compile error without
+always producing correct behaviour. Recording the miss.
+
+Both models rise substantially (+5, +7), so ~10% of every recorded generation number on
+this bench was import hygiene the real Builder loop already repairs with a gate.
