@@ -256,3 +256,36 @@ remains 'keyword' so recorded numbers stay comparable.
 Re-scoring the recorded review numbers under the strict rule costs one model run, because
 those runs predate --save-generations. Both other benches now persist generations too, so
 this is the last scoring question in the pipeline that requires a GPU.
+
+=============================================================================
+ALGORITHM STRENGTH SWEEP (2026-07-21) — the specialist leads ONLY at zero algorithm
+=============================================================================
+Same models, same tasks, four levels of algorithm. goimports = deterministic import
+repair; best-of-4/valid = sample up to 4 and ship the first test that passes on the code
+under test (realizable — no peeking at the planted bug). Hard-bench columns are the SAME
+generations re-scored offline against go_test_bench_hard, zero extra tokens.
+
+  algorithm applied        go_test_bench        go_test_bench_hard
+                           base    specialist   base    specialist
+  none (greedy)             7/18     11/18       4/18      6/18
+  + goimports              14/18     11/18       9/18      6/18
+  best-of-4/valid          13/18     12/18      10/18      5/18
+  both                     16/18     14/18      12/18     10/18
+
+The specialist wins EXACTLY the two zero-algorithm cells, and loses all six cells where
+any algorithm is present — on both mutant strengths, on a deterministic component and a
+sampling component, and on the two combined. Either component ALONE is enough to pass it
+(14 and 13 vs 11 on the original bench; 9 and 10 vs 6 on the hard one).
+
+That is what the recorded "+3/+4 for the test specialist" measured: the value of a
+specialist to a loop with NO algorithm in it. This project's premise is the opposite kind
+of system, so that number never described the system being built.
+
+Note the mechanism is validity throughout: goimports changed 19 base candidates and 2
+specialist candidates in the both-components arm, and the base's valid-test count rises
+7 -> 17/18 while its caught-given-valid on the hard bench stays in the 57-71% band. The
+algorithm buys runnable tests; neither model's tests get sharper teeth from it.
+
+CAVEATS: the best-of arms sample at t=0.6 and were run once (n=1), so their cells carry
+sampling noise; the greedy cells are deterministic and reproduce exactly. N=18. The
+specialist is go-test-scaled, its best version.
