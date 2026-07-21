@@ -64,6 +64,15 @@ def _verdict(cands, select: str) -> bool:
     return False
 
 
+def _tag(best_of: int, temp: float, select: str) -> str:
+    """Label a run's decoding regime. Must never claim 'greedy' while a sampler is
+    attached: best-of-1 at t>0 is the single-sample CONTROL that separates 'temperature
+    helped' from 'retrying helped'."""
+    if best_of > 1:
+        return f"best-of-{best_of}@t{temp}/{select}"
+    return "greedy" if temp == 0 else f"single-sample@t{temp}"
+
+
 def _self_test() -> int:
     """Model-free truth table for _verdict — the selector is the whole experiment."""
     cases = [
@@ -81,7 +90,17 @@ def _self_test() -> int:
         got_o, got_v = _verdict(cands, "oracle"), _verdict(cands, "valid")
         assert got_o == want_oracle, f"oracle{cands}: {got_o} != {want_oracle}"
         assert got_v == want_valid, f"valid{cands}: {got_v} != {want_valid}"
+    tags = [
+        ((1, 0.0, "oracle"), "greedy"),
+        ((1, 0.6, "oracle"), "single-sample@t0.6"),  # the control — must NOT read "greedy"
+        ((4, 0.6, "valid"), "best-of-4@t0.6/valid"),
+        ((4, 0.6, "oracle"), "best-of-4@t0.6/oracle"),
+    ]
+    for a, want in tags:
+        got = _tag(*a)
+        assert got == want, f"_tag{a}: {got!r} != {want!r}"
     print(f"_verdict self-test: {len(cases)} cases OK (oracle >= valid on all)")
+    print(f"_tag self-test: {len(tags)} cases OK")
     return 0
 
 
@@ -123,7 +142,7 @@ def main() -> int:
     label = os.path.basename(args.adapter) if args.adapter else "BASE (untuned)"
     temp = args.temp if args.temp > 0 else (0.6 if args.best_of > 1 else 0.0)
     sampler = make_sampler(temp=temp) if temp > 0 else None
-    tag = f"best-of-{args.best_of}@t{temp}/{args.select}" if args.best_of > 1 else "greedy"
+    tag = _tag(args.best_of, temp, args.select)
     tasks = [json.loads(l) for l in open(args.bench)]
     print(f"mlx test-bench (mutation): {len(tasks)} tasks · model={label}\n")
 
