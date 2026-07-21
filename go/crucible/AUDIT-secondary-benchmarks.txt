@@ -289,3 +289,28 @@ algorithm buys runnable tests; neither model's tests get sharper teeth from it.
 CAVEATS: the best-of arms sample at t=0.6 and were run once (n=1), so their cells carry
 sampling noise; the greedy cells are deterministic and reproduce exactly. N=18. The
 specialist is go-test-scaled, its best version.
+
+--- go_review_bench re-scored under the non-gameable rule (2026-07-21) ---
+Both models re-run with --save-generations (their reviews are now on disk), then scored
+offline under every rule at zero cost:
+
+  rule                       base    go-review
+  keyword   min-kw=1 (rec.)   7/8       6/8      <- the recorded numbers, reproduced exactly
+  keyword   min-kw=2          5/8       5/8
+  discriminative min-kw=1     5/8       5/8
+  discriminative min-kw=2     4/8       5/8
+
+The recorded "-1 specialist regression" DISAPPEARS: under a rule a generic checklist
+cannot game, the two are TIED at 5/8 (and at min-kw=2 the specialist is nominally ahead).
+The base loses two of its seven (slice_alias, double_close) because those reviews matched
+other tasks' keyword sets at least as well as their own — i.e. they were credited for Go
+vocabulary, not for identifying THIS defect. Exactly the failure mode the shotgun probe
+predicted, now visible in real model output.
+
+Neither model identifies value_receiver_mutex at all (0 own-keyword hits for both), so
+that task discriminates nothing at this model scale.
+
+CONCLUSION for this file's cross-specialist table: the go-review row (-1) should be read
+as NO MEASURED DIFFERENCE, not as a regression. Combined with the test-writing correction
+above, every claimed specialist effect on the secondary benches has now either reversed
+(test-writing) or evaporated (review) once the measurement was repaired.
