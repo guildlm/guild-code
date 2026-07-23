@@ -412,6 +412,11 @@ go-dev-dapt600 with the current (EOS-registered) harness:
   behavior_probe (chat integrity), n=6:
     BASE            CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
     go-dev-dapt600  CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
+    go-dev-dapt300  CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
+  Chat survives at BOTH 300 and 600 DAPT steps, so the EOS-bug explanation is robust
+  across checkpoints — not a fluke of one. (The dapt300 dev-bench dose-response run was
+  killed under system load; its chat probe completed. Not re-run — marginal, and the -11
+  capability regression at 600 stands as the DAPT verdict.)
 
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
