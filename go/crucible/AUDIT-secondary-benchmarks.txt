@@ -341,3 +341,30 @@ somewhat WEAKER. Its measured value was validity, which the algorithm supplies f
 
 CAVEAT: n=3 at N=18 is still small; the hard-bench ordering is consistent across all three
 pairs but the per-replicate ranges touch at 10.
+
+======================================================================
+go_edit_bench — TEETH AUDIT (2026-07-23, model-free)
+======================================================================
+Applied the same lens the test/review benches got, in its model-free form: does a
+DEGENERATE answer score a pass? For an EDIT task the trivial answer is not an empty
+file (verify_bench's existing degeneracy check) but the UNCHANGED ORIGINAL the model
+is handed in the prompt — a verbatim echo is a common model failure. That property
+was verified NOWHERE: build_go_edit_bench.py only checked the reference PASSES.
+
+Probed all 8 tasks: every flawed original FAILS its hidden test -> the bench has teeth
+(no echo-degeneracy). Two tasks (divide_error, max_empty_guard) fail via signature-change
+compile error, the other six via behavioural test failure. Positive result, unlike the
+test/review benches — but until now unenforced.
+
+Enforced it (so the finding cannot silently rot, and so a future toothless edit task is
+caught):
+  - build_go_edit_bench.py now asserts each original FAILS, and stores it as
+    metadata.original in the record.
+  - verify_bench.py gained an ECHO-DEGENERATE check for any task carrying
+    metadata.original (backward-compatible; gen benches skip it).
+  - Proven non-vacuous: a planted task whose original passes its test makes the gate
+    exit 1 and names it.
+  - This flows into verify_pipeline.py (already runs verify_bench on go_edit_bench) and
+    thus into the new CI workflow (.github/workflows/crucible-gates.yml).
+Scoring inputs (prompt/reference/tests) are byte-identical before/after; only
+metadata.original was added, so recorded edit-bench numbers are unchanged.

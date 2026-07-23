@@ -12,6 +12,12 @@ BENCHMARK ITSELF is unsound. Two ways it can be, both caught here with the same
     nothing in it). Then the test does not require the solution at all and every
     model scores it free — inflating pass@1 and hiding real capability differences.
     This is the teeth insight (a green test that defends nothing) applied to a bench.
+  - ECHO-DEGENERATE task (EDIT benches only): the task carries a flawed `original`
+    in its metadata, and that original already PASSES the hidden test. Then a model
+    that echoes back the unchanged code it was handed in the prompt scores a pass —
+    a stronger degeneracy than the empty-impl one, because for an EDIT task the
+    trivial answer is the original it was given, not an empty file, and a test can
+    exercise-nothing-new while still failing on empty.
 
 Also checks the file parses and ids are unique. Needs the Go toolchain.
 
@@ -101,7 +107,7 @@ def main() -> int:
                       if not bad else "FAIL — see lists above."))
         return 1 if bad else 0
 
-    broken, degenerate, no_ref = [], [], []
+    broken, degenerate, echo_degenerate, no_ref = [], [], [], []
     for t in tasks:
         test = t["metadata"]["tests"]
         ref = t.get("reference")
@@ -111,13 +117,19 @@ def main() -> int:
             broken.append(t["id"])
         if runs_green("package sandbox\n", test):
             degenerate.append(t["id"])
+        # EDIT-bench only: the flawed original the model is handed must FAIL, or a
+        # verbatim echo of the prompt scores a pass. Skipped when absent (gen benches).
+        original = t["metadata"].get("original")
+        if original is not None and runs_green(original, test):
+            echo_degenerate.append(t["id"])
 
     print(f"tasks {len(tasks)}  unique ids {len(set(ids))}  duplicates {dups or 'none'}")
     print(f"reference FAILS its own test (BROKEN):   {len(broken)} {broken}")
     print(f"passes on EMPTY impl (DEGENERATE):       {len(degenerate)} {degenerate}")
+    print(f"flawed original PASSES (ECHO-DEGENERATE):{len(echo_degenerate)} {echo_degenerate}")
     print(f"no reference field (unchecked solvable): {len(no_ref)} {no_ref}")
 
-    bad = bool(dups or broken or degenerate)
+    bad = bool(dups or broken or degenerate or echo_degenerate)
     if no_ref and len(no_ref) == len(tasks):
         # Same rule as the test-writing branch: with no reference anywhere, solvability was
         # never checked, so "OK" would be a green that verified nothing.

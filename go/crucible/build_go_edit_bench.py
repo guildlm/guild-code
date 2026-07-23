@@ -10,6 +10,13 @@ data/go_edit_bench.jsonl` runs it unchanged.
 
 Every `reference` (the correct edit) is verified to pass its hidden test with
 the real local Go toolchain, so the benchmark is sound before scoring a model.
+And every flawed `original` is verified to FAIL its hidden test: otherwise the
+task is toothless — a model that just echoes the unchanged code it was handed in
+the prompt would score a pass, and the "edit" measures nothing. (This is a
+stronger check than empty-impl degeneracy: the trivial answer for an EDIT task is
+the original it was given, not an empty file, and a test can miss the requested
+change while still failing on empty.) The original is stored in the record so the
+committed artifact can be re-checked by verify_bench.py without this script.
 
 Usage:
     python build_go_edit_bench.py            # verify + write data/go_edit_bench.jsonl
@@ -112,11 +119,15 @@ def main() -> int:
 
     rows, ok_all = [], True
     for tid, req, original, ref, test in TASKS:
-        ok, diag = verify(ref, test)
-        print(f"  [{'PASS' if ok else 'FAIL'}] {tid}")
-        if not ok:
+        ref_ok, ref_diag = verify(ref, test)          # the fix must PASS
+        orig_pass, _ = verify(original, test)          # the flaw must FAIL (else toothless)
+        sound = ref_ok and not orig_pass
+        print(f"  [{'PASS' if sound else 'FAIL'}] {tid}"
+              + ("" if sound else f"  (ref_passes={ref_ok}, original_passes={orig_pass})"))
+        if not sound:
             ok_all = False
-            print("    ", diag.replace("\n", " ")[:200])
+            if not ref_ok:
+                print("    ref:", ref_diag.replace("\n", " ")[:200])
             continue
         rows.append(
             {
@@ -124,7 +135,7 @@ def main() -> int:
                 "prompt": _prompt(req, original),
                 "reference": ref,
                 "prediction": ref,  # placeholder; the model fills this at eval time
-                "metadata": {"module": MODULE, "tests": test},
+                "metadata": {"module": MODULE, "tests": test, "original": original},
             }
         )
 
