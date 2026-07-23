@@ -152,16 +152,24 @@ was run on stringkit. Result, verbatim from the log:
     ESCALATION FIRES LIVE with real model serving (the last unproven combination; the offline
     test already proves escalate->green with real go);
   - rounds 3-6: still `undefined: Reverse`; no convergence.
-Diagnosis: 1.5B's stringkit.go defines Reverse correctly, so `undefined: Reverse` is a
-COMPILE CASCADE — another part of the impl fails to compile, the file is dropped, and Reverse
-looks undefined at the TEST's call site. The fix loop targets the file the error NAMES (the
-test), so escalation moved the test to 7B while the impl root-cause stayed on 1.5B and was
-never fixed. So: escalation is only as good as the fix loop's file TARGETING — escalating the
-error-named file cannot help when the root cause is another file. This is a pre-existing
-target-selection behaviour (not a routing bug), but it bounds routing's benefit and is the
-natural next improvement: when escalating, prefer the file the missing symbol should be
-DEFINED in, not merely where it is referenced. (The healthy-base smoke in 5b greened first
-try, so this only surfaces with a base weak enough to emit cascading impl errors.)
+Diagnosis (CORRECTED after reading the generated files — the first pass mis-blamed a compile
+cascade; the real cause is simpler and the targeting was RIGHT): 1.5B wrote stringkit_test.go
+as `package stringkit_test` (an EXTERNAL test package) but called bare `Reverse(...)`. An
+external test package can only reach exported identifiers via the qualifier `stringkit.Reverse`,
+so bare `Reverse` is undefined. stringkit.go itself compiles standalone (`go build` exit 0) —
+there is NO cascade; the impl is fine. So the failing file really IS the test, the fix loop
+targeted it CORRECTLY, and escalating it to 7B was the right target. What did not happen is a
+REPAIR: neither model's fix restructured the test (change to `package stringkit` OR qualify the
+calls), each kept `package stringkit_test` + bare `Reverse`, so the error persisted.
+CONCLUSION: this is a repair-quality limit on a specific structural error (external test
+package + bare symbol), NOT a targeting problem — escalation put the file in front of the
+stronger model, but the fix prompt did not steer either model to the structural rewrite.
+It is a weak-model artefact: the healthy 7B-only smoke (5b) greened stringkit first try. The
+genuine (marginal) improvements are therefore (a) a deterministic gate that rewrites a
+`package X_test` file to `package X` when it references bare package symbols, or (b) a fix-
+prompt hint about external-test-package qualification — both help weak bases, neither is
+needed for the recommended {base-7B, final, 14b} fleet. NOTE: this corrects the earlier
+"escalate the definition file" suggestion, which was based on the wrong (cascade) diagnosis.
 
 ## 6. Explicit non-goals / risks
 - Not a replacement for training better specialists — it is orthogonal (routing multiplies
