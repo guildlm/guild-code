@@ -41,8 +41,10 @@
 #     48/48 (100%) — the 14B specialist alone rescues ctx_cancel_worker. No single
 #     model beats base; model x ALGORITHM (routing across a diverse fleet) saturates
 #     the bench. Each member owns a niche (base backbone, 7B specialists rune/string,
-#     14B specialist concurrency). -> invest in the routing loop; specialists earn
-#     their place as cheap complementary members, not as standalone replacements.
+#     14B specialist concurrency). BUT the 48 is an ORACLE: a realizable compile-
+#     gated router captures 0 of the +4 (base's wrong answers compile), so the gain
+#     needs a TEST signal to select on. -> invest in routing ONLY with test-based
+#     selection; specialists are cheap complementary members, not standalone swaps.
 ################################################################################
 
 go_dev_bench v2 (48 harder tasks) — results, 2026-07-19 (autonomous session)
@@ -604,6 +606,24 @@ edge cases, the 14B specialist owns the one concurrency case. This is the constr
 of the whole session's negative results: "no single specialist beats base" AND "an ensemble
 that routes across them beats base and saturates the bench" are the same finding seen from
 the two sides of model x algorithm.
+
+BUT THAT 48/48 IS AN ORACLE — how much is REALIZABLE? (realizable_router.py) Almost none of
+it with a compile-only gate. A real router cannot see the hidden test; on this bench its only
+visible signal is compile/vet. Policy 'compile-first, base-first' (try base, fall through to
+specialists only when a candidate does NOT compile), scored against the hidden test:
+    base alone                 44/48
+    compile-gated router       44/48   (routed away from base on 1 task; it did not help)
+    ORACLE union               48/48
+    captured by the compile gate: 0 of the 4 oracle gain.
+Base FAILS exactly the 4 rescued tasks (rune_at/title_case/chunk_reader/ctx_cancel_worker),
+but base's wrong answers all COMPILE, so a compile/vet gate keeps them and never routes to
+the specialist that would fix them. THE CAVEAT THAT MATTERS: the +4 is real but NOT free —
+it needs a TEST signal to select on, not just compile. The real Builder loop HAS a test gate
+(it runs the generated project's tests), so routing across models can capture the gain THERE
+to the extent those tests discriminate the rescue cases; but "routing gets you to 48/48" is
+an overstatement of what a compile/vet gate alone buys. Practical, corrected: invest in
+routing ONLY together with test-based selection; a compile-gated best-of does nothing here.
+realizable_router.py is model-free (imports the bench scorer).
 
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
