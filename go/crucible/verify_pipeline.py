@@ -16,16 +16,20 @@ Gates:
   1. selector/tag/fence/repair self-tests (mlx_test_bench --self-test)
   2. verify_bench itself FIRES on a bad bench (verify_bench --self-test) — the checker that
      gates every bench below is proven non-vacuous with planted broken/degenerate fixtures
-  3. ONE copy of each valid-Go helper (extract_code / _truncated / _repair_imports) shared
+  3. the contamination matcher FIRES on a planted leak (check_contamination --self-test) —
+     corpora-free, so it gates even though the full run cannot (see note below)
+  4. ONE copy of each valid-Go helper (extract_code / _truncated / _repair_imports) shared
      across the harnesses — a re-copied helper is how the same bug reappears in a fourth
-  4. benchmark data integrity (verify_bench on each bench)
-  5. review scoring is still gameable under the recorded rule, and still NOT gameable
+  5. benchmark data integrity (verify_bench on each bench)
+  6. review scoring is still gameable under the recorded rule, and still NOT gameable
      under the strict one, and the strict one still credits genuine reviews
 
-Deliberately NOT a gate here: check_contamination.py. It is model-free too, but it needs
-the training corpora (--train), which are gitignored and 170MB+ — absent from any CI
-checkout, so wiring it would fail for lack of data, not for real contamination. It stays a
-local pre-flight; run it by hand when a bench or a training set changes.
+The full contamination RUN is deliberately NOT a gate here: check_contamination.py needs the
+training corpora (--train), which are gitignored and 170MB+ — absent from any CI checkout, so
+wiring the run would fail for lack of data, not for real contamination. It stays a local
+pre-flight; run it by hand when a bench or a training set changes. Its MATCHER, however, is
+corpora-free, so its self-test (--self-test, synthetic fixtures) IS gated — a silently broken
+matcher would report every future training set 'clean', the worst false-negative here.
 """
 import os
 import subprocess
@@ -58,6 +62,12 @@ def main() -> int:
     # than letting the real-bench gates stay vacuously green.
     ok, out = run([PY, "verify_bench.py", "--self-test"])
     gate("verify_bench fires on bad benches (self-test)", ok, out.strip()[-300:])
+
+    # The full contamination check needs the gitignored corpora (see note below), but its
+    # matcher is corpora-free and its silent failure — reporting every future training set
+    # "clean" — is the worst thing a credibility gate can do. Gate the matcher, not the run.
+    ok, out = run([PY, "check_contamination.py", "--self-test"])
+    gate("contamination matcher fires on a planted leak (self-test)", ok, out.strip()[-300:])
 
     # A shared import is the only thing stopping a fourth copy of the fence bug: assert the
     # harnesses are literally running the same function object, not similar-looking code.
