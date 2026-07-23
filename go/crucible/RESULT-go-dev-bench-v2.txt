@@ -414,9 +414,20 @@ go-dev-dapt600 with the current (EOS-registered) harness:
     go-dev-dapt600  CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
     go-dev-dapt300  CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
   Chat survives at BOTH 300 and 600 DAPT steps, so the EOS-bug explanation is robust
-  across checkpoints — not a fluke of one. (The dapt300 dev-bench dose-response run was
-  killed under system load; its chat probe completed. Not re-run — marginal, and the -11
-  capability regression at 600 stands as the DAPT verdict.)
+  across checkpoints — not a fluke of one.
+
+  DOSE-RESPONSE (dapt300 dev-bench, fixed harness, re-run once the system load cleared):
+    dapt300  26/48 raw · 31/48 +goimports · compiles 35/48 · 2 truncations
+    dapt600  29/48 raw · 33/48 +goimports · compiles 35/48 · 0 truncations
+    base     39/48 raw · 44/48 +goimports (for reference)
+  MORE DAPT steps is BETTER, not worse: 300->600 raises the score (26->29, 31->33) AND
+  stabilises chat (2 truncations -> 0). So the -11 capability hit is NOT dose-worsening
+  damage — it is a distribution-shift DIP that more training partially recovers, the same
+  shape as the SFT LoRA (iter 400 30/48 < iter 1200 33/48). And the 13% replay consolidates
+  chat MORE with more steps, the opposite of "13% collapses chat by 600 steps". Net DAPT
+  verdict: chat fine, capability net-negative (best seen 33 vs base 44) but recovering with
+  steps — whether it ever reaches base is an open Kaggle question, not a chat-repair one.
+  dapt300 generations committed (data/go_dev_bench_dapt300_greedy.jsonl).
 
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
