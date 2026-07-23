@@ -16,8 +16,8 @@ Gates:
   1. selector/tag/fence/repair self-tests (mlx_test_bench --self-test)
   2. verify_bench itself FIRES on a bad bench (verify_bench --self-test) — the checker that
      gates every bench below is proven non-vacuous with planted broken/degenerate fixtures
-  3. ONE fence implementation shared by all three harnesses — a re-copied extract_code is
-     how the same bug reappears in a fourth
+  3. ONE copy of each valid-Go helper (extract_code / _truncated / _repair_imports) shared
+     across the harnesses — a re-copied helper is how the same bug reappears in a fourth
   4. benchmark data integrity (verify_bench on each bench)
   5. review scoring is still gameable under the recorded rule, and still NOT gameable
      under the strict one, and the strict one still credits genuine reviews
@@ -61,17 +61,27 @@ def main() -> int:
 
     # A shared import is the only thing stopping a fourth copy of the fence bug: assert the
     # harnesses are literally running the same function object, not similar-looking code.
+    # extract_code is not the only helper that decides "valid Go / truncated"; _repair_imports
+    # and _truncated gate the same conclusions, so a local copy of EITHER reintroduces the
+    # exact divergence this gate exists to stop. Assert identity for every helper each
+    # harness imports, and name the one that diverged.
     try:
         sys.path.insert(0, HERE)
         import bench_compare
         import mlx_bench
         import mlx_test_bench
-        same = (mlx_bench.extract_code is mlx_test_bench.extract_code
-                and bench_compare.extract_code is mlx_test_bench.extract_code)
-        gate("all three harnesses share ONE extract_code", same,
-             "a harness has its own copy again — the fence bug can diverge")
+        shared = [
+            ("mlx_bench.extract_code", mlx_bench.extract_code, mlx_test_bench.extract_code),
+            ("bench_compare.extract_code", bench_compare.extract_code, mlx_test_bench.extract_code),
+            ("mlx_bench._truncated", mlx_bench._truncated, mlx_test_bench._truncated),
+            ("bench_compare._truncated", bench_compare._truncated, mlx_test_bench._truncated),
+            ("mlx_bench._repair_imports", mlx_bench._repair_imports, mlx_test_bench._repair_imports),
+        ]
+        diverged = [name for name, got, canon in shared if got is not canon]
+        gate("harnesses share ONE copy of each valid-Go helper", not diverged,
+             f"own copy again, fence bug can diverge: {diverged}")
     except Exception as e:  # noqa: BLE001
-        gate("all three harnesses share ONE extract_code", False, f"{type(e).__name__}: {e}")
+        gate("harnesses share ONE copy of each valid-Go helper", False, f"{type(e).__name__}: {e}")
 
     for bench, expect_ok in (("go_dev_bench", True), ("go_edit_bench", True),
                              ("go_test_bench_hard", True), ("go_test_bench", False)):
