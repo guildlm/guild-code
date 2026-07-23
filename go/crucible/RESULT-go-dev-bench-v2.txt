@@ -458,6 +458,22 @@ Every specialist is <= base; the thesis (no generation specialist beats base, th
 carries all) holds after removing the harness artefact. Generations committed
 (data/go_dev_bench_{v5,final}_greedy.jsonl).
 
+SCALE EXTENSION (2026-07-23) — does specialist <= base hold at 14B? YES, same mechanism.
+Ran base vs go-dev-14b on the 14B-4bit base (both cached), greedy, fixed harness:
+  BASE-14B    36/48 raw · 43/48 +goimports · compiles 39/48 · passes-given-compiles 92%
+  go-dev-14b  27/48 raw · 40/48 +goimports · compiles 30/48 · passes-given-compiles 90%
+Raw gap -9 is almost entirely COMPILE (39 vs 30); passes-given-compiles is ~equal (92 vs
+90). goimports shrinks the gap to -3 and changed 19 specialist gens vs 12 base = the
+specialist again carries more import-hygiene debt. SCALE-ROBUST:
+  7B:  base 44 vs v4  40  = -4  (+goimports)
+  14B: base 43 vs spec 40  = -3  (+goimports)
+The specialist sits a few points below base at BOTH scales, deficit = Go hygiene both times.
+And scaling the base 7B->14B barely moves the bench (44 -> 43) while the 14B specialist
+equals the 7B specialist (40) — so on this bench neither model scale nor specialisation
+beats base+goimports; the algorithm term dominates across scale. Generations committed
+(data/go_dev_bench_{base14b,spec14b}_greedy.jsonl). Caveat: one 14B specialist checkpoint,
+greedy, N=48.
+
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
                     ZERO truncations across all 48 prompts
