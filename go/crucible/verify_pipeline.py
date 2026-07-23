@@ -23,6 +23,9 @@ Gates:
   5. benchmark data integrity (verify_bench on each bench)
   6. review scoring is still gameable under the recorded rule, and still NOT gameable
      under the strict one, and the strict one still credits genuine reviews
+  7. the review bench is solvable — every gold reference review passes the recorded rule
+     (the verify_bench "reference passes its own test" check, for the one bench verify_bench
+     cannot run on)
 
 The full contamination RUN is deliberately NOT a gate here: check_contamination.py needs the
 training corpora (--train), which are gitignored and 170MB+ — absent from any CI checkout, so
@@ -108,9 +111,14 @@ def main() -> int:
         gameable = "SHOTGUN  keyword        min-kw=1: scores 7/8" in out
         immune = "SHOTGUN  discriminative min-kw=1: scores 0/8" in out
         genuine = "positive control: 3/3" in out
+        # verify_bench analogue for the review bench (the one bench verify_bench cannot
+        # check): the gold reference review must pass the recorded scoring rule, or the
+        # task is unsound.
+        solvable = "gold references pass recorded rule (keyword min-kw=1): 8/8" in out
         gate("review scoring: recorded rule still gameable (7/8)", gameable)
         gate("review scoring: strict rule not gameable (0/8)", immune)
         gate("review scoring: strict rule still credits genuine reviews (3/3)", genuine)
+        gate("review bench solvable: gold references pass recorded rule (8/8)", solvable)
     else:
         gate("review scoring probe runs", False, out.strip()[-300:])
 

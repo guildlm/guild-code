@@ -95,6 +95,27 @@ def main() -> int:
     print(f"positive control: {good}/{len(GENUINE)} genuine reviews still score under the "
           f"stricter rule\n")
 
+    # SOLVABILITY — the verify_bench analogue for a review bench. verify_bench checks the
+    # reference solution passes its own test; here the exemplary correct REVIEW (the task's
+    # `reference`) must pass the recorded scoring rule. If the gold answer cannot score its
+    # own task, the task is unsound and no model could pass it either — a "specialist < base"
+    # gap on it would be pure task noise. Gated in verify_pipeline.
+    solvable, unsound = 0, []
+    for t in tasks:
+        ref = t.get("reference") or ""
+        if scores(ref, t["id"], bench, "keyword", 1):
+            solvable += 1
+        else:
+            unsound.append(t["id"])
+    print(f"gold references pass recorded rule (keyword min-kw=1): {solvable}/{len(tasks)}"
+          + (f"  UNSOUND: {unsound}" if unsound else ""))
+    # For the record, not gated: under the strict discriminative rule a concise gold review
+    # can still miss (nil_map_write names one keyword, not a strict argmax over every other
+    # task) — which is exactly why the recorded rule stays the default.
+    disc = sum(bool(scores(t.get("reference") or "", t["id"], bench, "discriminative", 1))
+               for t in tasks)
+    print(f"  (for the record, gold references under discriminative: {disc}/{len(tasks)})\n")
+
     # An echoed keyword is free: the review can copy it out of the prompt without
     # understanding anything.
     echo = [(t["id"], [k for k in t["metadata"]["keywords"] if k.lower() in t["prompt"].lower()])
