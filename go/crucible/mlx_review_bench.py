@@ -14,6 +14,7 @@ Usage (with the mlx venv's python):
 import argparse
 import json
 import os
+import sys
 
 SYSTEM = (
     "You are a Go code reviewer. Identify the single real bug in the code and "
@@ -80,6 +81,13 @@ def main() -> int:
     im_end = tokenizer.encode("<|im_end|>")
     if len(im_end) == 1:
         tokenizer.eos_token_ids.add(im_end[0])
+    else:
+        # If this ever fails, NOTHING stops generation at <|im_end|>: tuned adapters
+        # ramble to max_tokens on every prompt and score ~0 for the wrong reason,
+        # silently corrupting the A/B. Make it loud instead of quietly biasing it.
+        print(f"WARNING: <|im_end|> did not encode to a single token ({im_end}); "
+              "generation may not stop and scores for tuned adapters will be biased low.",
+              file=sys.stderr)
     label = os.path.basename(args.adapter) if args.adapter else "BASE (untuned)"
     tasks = [json.loads(l) for l in open(args.bench)]
     bench_keywords = {t["id"]: t["metadata"]["keywords"] for t in tasks}
