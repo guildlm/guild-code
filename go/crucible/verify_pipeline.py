@@ -14,10 +14,12 @@ that needs generated artefacts.
 
 Gates:
   1. selector/tag/fence/repair self-tests (mlx_test_bench --self-test)
-  2. ONE fence implementation shared by all three harnesses — a re-copied extract_code is
+  2. verify_bench itself FIRES on a bad bench (verify_bench --self-test) — the checker that
+     gates every bench below is proven non-vacuous with planted broken/degenerate fixtures
+  3. ONE fence implementation shared by all three harnesses — a re-copied extract_code is
      how the same bug reappears in a fourth
-  3. benchmark data integrity (verify_bench on each bench)
-  4. review scoring is still gameable under the recorded rule, and still NOT gameable
+  4. benchmark data integrity (verify_bench on each bench)
+  5. review scoring is still gameable under the recorded rule, and still NOT gameable
      under the strict one, and the strict one still credits genuine reviews
 
 Deliberately NOT a gate here: check_contamination.py. It is model-free too, but it needs
@@ -49,6 +51,13 @@ def main() -> int:
 
     ok, out = run([PY, "mlx_test_bench.py", "--self-test"])
     gate("self-tests (selector, tag, fence, import repair)", ok, out.strip()[-300:])
+
+    # verify_bench is the gate on the benches below; this proves the gate itself FIRES.
+    # It builds tiny fixtures the checker MUST flag (broken/degenerate/echo/duplicate) plus
+    # clean controls it must pass — so a regression that no-ops a check goes red here rather
+    # than letting the real-bench gates stay vacuously green.
+    ok, out = run([PY, "verify_bench.py", "--self-test"])
+    gate("verify_bench fires on bad benches (self-test)", ok, out.strip()[-300:])
 
     # A shared import is the only thing stopping a fourth copy of the fence bug: assert the
     # harnesses are literally running the same function object, not similar-looking code.

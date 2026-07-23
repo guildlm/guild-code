@@ -79,9 +79,113 @@ def check_test_bench(tasks):
     return broken, degenerate, unchecked
 
 
+def check_code_bench(tasks):
+    """The BROKEN / DEGENERATE / ECHO-DEGENERATE failure modes for an impl-writing bench.
+
+    Returns (broken, degenerate, echo_degenerate, no_ref) id lists, mirroring
+    check_test_bench so the two branches read the same and can share a self-test.
+    """
+    broken, degenerate, echo_degenerate, no_ref = [], [], [], []
+    for t in tasks:
+        test = t["metadata"]["tests"]
+        ref = t.get("reference")
+        if not ref:
+            no_ref.append(t["id"])
+        elif not runs_green(ref, test):
+            broken.append(t["id"])
+        if runs_green("package sandbox\n", test):
+            degenerate.append(t["id"])
+        # EDIT-bench only: the flawed original the model is handed must FAIL, or a
+        # verbatim echo of the prompt scores a pass. Skipped when absent (gen benches).
+        original = t["metadata"].get("original")
+        if original is not None and runs_green(original, test):
+            echo_degenerate.append(t["id"])
+    return broken, degenerate, echo_degenerate, no_ref
+
+
+def _self_test() -> int:
+    """Prove verify_bench actually FIRES on a bad bench — a checker nobody has seen catch
+    anything is indistinguishable from a no-op (the teeth insight, turned on this file).
+
+    Each fixture below is a task the checker MUST flag, plus a clean control it must pass.
+    If a future edit silently defeats a check (an inverted condition, a dropped branch),
+    the corresponding assert here goes red instead of the pipeline staying vacuously green.
+    Model-free: only the Go toolchain, same as the real gate.
+    """
+    ADD_REF = "package sandbox\n\nfunc Add(a, b int) int { return a + b }\n"
+    ADD_WRONG = "package sandbox\n\nfunc Add(a, b int) int { return a - b }\n"
+    ADD_TEST = ('package sandbox\n\nimport "testing"\n\n'
+                'func TestAdd(t *testing.T) { if Add(1, 2) != 3 { t.Fatal("bad") } }\n')
+    # A test that references nothing in the impl: it passes even on an empty package.
+    EMPTY_OK_TEST = 'package sandbox\n\nimport "testing"\n\nfunc TestNothing(t *testing.T) {}\n'
+
+    def code_task(tid, ref, test, original=None):
+        m = {"tests": test}
+        if original is not None:
+            m["original"] = original
+        return {"id": tid, "reference": ref, "metadata": m}
+
+    fails = []
+
+    def want(label, cond):
+        print(f"  {'ok  ' if cond else 'FAIL'} {label}")
+        if not cond:
+            fails.append(label)
+
+    # --- impl-writing branch (check_code_bench) ---
+    b, d, e, nr = check_code_bench([code_task("clean", ADD_REF, ADD_TEST)])
+    want("clean impl task: no flags", not (b or d or e or nr))
+
+    b, d, e, nr = check_code_bench([code_task("broken", ADD_WRONG, ADD_TEST)])
+    want("wrong reference -> BROKEN", b == ["broken"] and not d)
+
+    b, d, e, nr = check_code_bench([code_task("degen", ADD_REF, EMPTY_OK_TEST)])
+    want("empty impl passes -> DEGENERATE", d == ["degen"])
+
+    b, d, e, nr = check_code_bench([code_task("echo", ADD_REF, ADD_TEST, original=ADD_REF)])
+    want("original already passes -> ECHO-DEGENERATE", e == ["echo"])
+
+    b, d, e, nr = check_code_bench([code_task("noref", None, ADD_TEST)])
+    want("missing reference -> no_ref", nr == ["noref"])
+
+    # --- test-writing branch (check_test_bench) ---
+    # correct impl the test should pass on; mutant a good witness catches but a naive misses.
+    CORRECT = "package sandbox\n\nfunc Abs(x int) int { if x < 0 { return -x }; return x }\n"
+    MUTANT = "package sandbox\n\nfunc Abs(x int) int { return x }\n"  # wrong for negatives
+    WITNESS = ('package sandbox\n\nimport "testing"\n\n'
+               'func TestAbs(t *testing.T) { if Abs(-3) != 3 { t.Fatal("neg") } }\n')
+    NAIVE = ('package sandbox\n\nimport "testing"\n\n'
+             'func TestAbs(t *testing.T) { if Abs(3) != 3 { t.Fatal("pos") } }\n')
+
+    def test_task(tid, correct, mutant, witness, naive):
+        return {"id": tid, "metadata": {"correct": correct, "mutant": mutant,
+                                        "witness_test": witness, "naive_test": naive}}
+
+    # clean: witness catches the mutant, and the mutant survives the naive test (so it is
+    # a real, non-shallow bug). Neither flag should fire.
+    b, d, u = check_test_bench([test_task("clean", CORRECT, MUTANT, WITNESS, NAIVE)])
+    want("clean test task: no flags", not (b or d or u))
+
+    # witness that also passes on the mutant does not isolate the bug -> BROKEN
+    b, d, u = check_test_bench([test_task("nowit", CORRECT, MUTANT, NAIVE, NAIVE)])
+    want("witness misses the mutant -> BROKEN", b == ["nowit"] and not d)
+
+    # a mutant the naive (shallow) test already kills is too easy -> DEGENERATE
+    b, d, u = check_test_bench([test_task("shallow", CORRECT, MUTANT, WITNESS, WITNESS)])
+    want("mutant dies to the naive test -> DEGENERATE", d == ["shallow"] and not b)
+
+    b, d, u = check_test_bench([test_task("unchk", CORRECT, MUTANT, None, None)])
+    want("no witness/naive fields -> unchecked", u == ["unchk"])
+
+    print(f"\nverify_bench self-test: {len(fails)} failure(s)" + (f" {fails}" if fails else " — all checks fire"))
+    return 1 if fails else 0
+
+
 def main() -> int:
+    if len(sys.argv) == 2 and sys.argv[1] == "--self-test":
+        return _self_test()
     if len(sys.argv) != 2:
-        print("usage: verify_bench.py <bench.jsonl>")
+        print("usage: verify_bench.py <bench.jsonl> | --self-test")
         return 2
     tasks = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
     ids = [t["id"] for t in tasks]
@@ -107,21 +211,7 @@ def main() -> int:
                       if not bad else "FAIL — see lists above."))
         return 1 if bad else 0
 
-    broken, degenerate, echo_degenerate, no_ref = [], [], [], []
-    for t in tasks:
-        test = t["metadata"]["tests"]
-        ref = t.get("reference")
-        if not ref:
-            no_ref.append(t["id"])
-        elif not runs_green(ref, test):
-            broken.append(t["id"])
-        if runs_green("package sandbox\n", test):
-            degenerate.append(t["id"])
-        # EDIT-bench only: the flawed original the model is handed must FAIL, or a
-        # verbatim echo of the prompt scores a pass. Skipped when absent (gen benches).
-        original = t["metadata"].get("original")
-        if original is not None and runs_green(original, test):
-            echo_degenerate.append(t["id"])
+    broken, degenerate, echo_degenerate, no_ref = check_code_bench(tasks)
 
     print(f"tasks {len(tasks)}  unique ids {len(set(ids))}  duplicates {dups or 'none'}")
     print(f"reference FAILS its own test (BROKEN):   {len(broken)} {broken}")
