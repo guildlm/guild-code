@@ -368,3 +368,36 @@ caught):
     thus into the new CI workflow (.github/workflows/crucible-gates.yml).
 Scoring inputs (prompt/reference/tests) are byte-identical before/after; only
 metadata.original was added, so recorded edit-bench numbers are unchanged.
+
+================================================================================
+EDIT-BENCH MODEL A/B (2026-07-23) — the last secondary bench, fixed harness
+================================================================================
+The edit bench was the one secondary bench never re-measured with the repaired
+harness (fence fix + compiles/passes decomposition + goimports). There is no
+go-edit specialist adapter, so the A/B uses base vs the benched go-dev-mixed-v4
+(editing is a dev task) — the same pair and greedy/deterministic regime as the
+generation A/B. mlx_bench on data/go_edit_bench.jsonl, N=8.
+
+  RAW (greedy):
+    base           pass@1 5/8 · compiles 6/8 · passes-given-compiles 5/6
+    go-dev-mixed-v4 pass@1 6/8 · compiles 7/8 · passes-given-compiles 6/7
+  The only per-task difference is palindrome_alnum (base '-' invalid, spec '+').
+  So the +1 is entirely a COMPILE difference, not editing logic.
+
+  + goimports (offline rescore, model-free):
+    base           7/8  (goimports fixed reverse_unicode AND palindrome_alnum)
+    go-dev-mixed-v4 7/8  (goimports fixed reverse_unicode)
+  goimports changed 4 base generations vs 1 specialist -> the raw gap was purely
+  base forgetting imports. Repaired, the two are BYTE-IDENTICAL per task: both
+  compile 8/8, both pass 7/8, both blind on the SAME one task (toptwo_alias, a
+  slice-aliasing edit-logic miss goimports cannot touch — a real editing failure
+  neither model fixes).
+
+VERDICT: the edit bench closes exactly like dev/test/review. The specialist's
+raw advantage is entirely Go hygiene (imports) and EVAPORATES once the algorithm's
+cheapest component (goimports) is on: base = specialist = 7/8. Fourth secondary
+bench, same result -> the "algorithm dominates, model choice barely matters on
+this project's tasks" thesis now holds across ALL of generation/test/review/edit.
+Caveat: N=8, greedy, one specialist (go-dev, not a dedicated go-edit).
+Generations committed (data/go_edit_bench_{base,specv4}_greedy.jsonl) -> the
+result re-scores offline with rescore_dev_bench.py, no GPU.
