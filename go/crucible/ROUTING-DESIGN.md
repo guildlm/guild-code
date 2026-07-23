@@ -46,11 +46,12 @@ cover. So the expected gain is "real but project-dependent", not the flat +4/48.
 
 ## 4. THE THREE DECISIONS (owner's call — implementation is mechanical after)
 
-D1. FLEET COMPOSITION. Minimum useful fleet from the evidence: `base-7B` (backbone) +
-    `go-dev-final` (rune/string rescues: 3 tasks) + `go-dev-14b` (concurrency: the only
-    model that gets ctx_cancel_worker). That is 3 members covering all 4 rescue niches.
-    Bigger fleets add cost, little coverage (the other specialists overlap final/14b).
-    -> pick {base, final, 14b} as the default, or a different set.
+D1. FLEET COMPOSITION. VALIDATED (ensemble_ceiling.py on the committed generations):
+    the 3-member fleet {base-7B, go-dev-final, go-dev-14b} reaches 48/48 — IDENTICAL to
+    the full 10-model fleet. Coverage: final -> chunk_reader, rune_at, title_case;
+    go-dev-14b -> ctx_cancel_worker (only model that gets it) + rune_at, title_case. The
+    other 7 specialists are redundant for the ceiling. So D1 is effectively decided: use
+    {base, final, 14b} unless you want a different trade. This also bounds D2 to 3 models.
 
 D2. SERVING. 7B-4bit (~4GB) and 14B-4bit (~8GB) do not comfortably co-reside for parallel
     calls on a typical Mac. Options: (a) SEQUENTIAL load-per-call (simple, slow: model
