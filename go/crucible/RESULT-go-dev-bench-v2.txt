@@ -1,3 +1,37 @@
+################################################################################
+# SUMMARY (2026-07-23) — full fixed-harness characterization. Details below.
+################################################################################
+# Harness fixed since the original runs: <|im_end|> registered as EOS (stops
+# rambling), unterminated-fence salvage, and a compiles/passes decomposition.
+# Every number below is greedy, N=48, and re-scorable offline from committed
+# generations (data/go_dev_bench_*_greedy.jsonl) via rescore_dev_bench.py.
+#
+#   model / recipe          raw   +goimports   note
+#   base 7B                  39      44         best
+#   go-dev-mixed-v4 (SFT)    33      40         plain SFT, mixed-data dip
+#   go-dev-dapt-replay       30      36         best DAPT (replay recovers +3)
+#   go-dev-final (SFT)       32      35
+#   go-dev-dapt600           29      33         "collapse" was the EOS bug, not damage
+#   go-dev-mixed-v5 (SFT)    29      32
+#   go-dev-dapt300           26      31         fewer DAPT steps = worse, recovers w/ steps
+#   go-dev-mined (SFT)       23      24         genuinely worst (mining data, real rambling)
+#   base 14B                 36      43         scale barely moves the bench
+#   go-dev-14b (SFT)         27      40         14B specialist also <= base (-3)
+#
+# FINDINGS:
+#  1. Every specialist <= base at BOTH 7B and 14B; the deficit is almost entirely
+#     Go hygiene (goimports closes most of it), not reasoning. The algorithm term
+#     dominates across scale AND recipe. (Secondary benches test/review/edit: same.)
+#  2. The recorded "DAPT damaged chat -> 15/48 collapse -> need frac25" was a
+#     HARNESS ARTEFACT: with EOS registered, DAPT chat is intact (0 truncations)
+#     and it scores 29/33. More DAPT steps recover (300<600), not worsen.
+#  3. Replay-mix DAPT (frac25's idea) helps capability a little (36 vs 33) but
+#     even the best DAPT loses to plain-SFT (40) and base (44) -> a frac25 Kaggle
+#     run has low, bounded expected value for beating base.
+#  4. Not every low recipe was an artefact: go-dev-mined is genuinely bad (rambles
+#     for real, 3 truncations survive EOS). The fixed harness separates the two.
+################################################################################
+
 go_dev_bench v2 (48 harder tasks) — results, 2026-07-19 (autonomous session)
 
 SERVED specialist (go-dev-mixed-v4 via mlx_lm.server :8080, bench_compare.py, production path):
