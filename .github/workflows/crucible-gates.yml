@@ -37,6 +37,9 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: stable
+          # The gates build ephemeral stdlib-only modules in temp dirs — there is no
+          # go.sum at the repo root, so module caching only logs a spurious cache-miss.
+          cache: false
 
       - name: Install goimports (the pipeline's only non-stdlib dependency)
         run: |
