@@ -133,8 +133,14 @@ def main() -> int:
             ok = runs_green(code, t["metadata"]["tests"])
             builds = ok or compiles(code)
         except Exception as e:  # generation/runtime error counts as a miss
-            ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
+            if args.save_generations:
+                # Record the errored task too: the saved set must cover every task the live
+                # run scored, or an offline re-score divides by a smaller denominator and
+                # the "re-score reproduces live" invariant silently breaks.
+                saved.append({"id": t["id"], "label": label, "regime": regime,
+                              "verdict": False, "compiles": False, "code": "",
+                              "error": type(e).__name__})
             continue
         passed += ok
         built += builds

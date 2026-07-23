@@ -280,8 +280,13 @@ def main() -> int:
                     break
             ok = _verdict(cands, args.select)
         except Exception as e:
-            ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
+            if args.save_generations:
+                # Record the errored task so the saved set covers every task the live run
+                # scored; otherwise an offline re-score divides by a smaller denominator.
+                saved.append({"id": t["id"], "label": label, "tag": tag,
+                              "verdict": False, "has_valid": False, "candidates": [],
+                              "error": type(e).__name__})
             continue
         passed += ok
         has_valid = _has_valid(cands)

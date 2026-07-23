@@ -61,6 +61,9 @@ def main() -> int:
         if ok != g.get("verdict"):
             flips.append(f"{g['id']}:{'+' if g.get('verdict') else '-'}->{'+' if ok else '-'}")
 
+    # Denominator is the saved set. mlx_bench --save-generations writes a row for EVERY task
+    # it scored, including ones whose generation errored (code=""), so this equals the live
+    # run's len(tasks) and the offline/live "reproduces exactly" invariant holds.
     n = len(gens)
     tag = label + ("" if not exe else " +imports")
     print(f"{tag} re-scored offline ({args.repair}):")

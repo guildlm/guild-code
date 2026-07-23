@@ -94,8 +94,13 @@ def main() -> int:
             matched = hits(out, t["metadata"]["keywords"])
             ok = scores(out, t["id"], bench_keywords, args.score, args.min_keywords)
         except Exception as e:
-            ok = False
             detail.append(f"{t['id']}:ERR({type(e).__name__})")
+            if args.save_generations:
+                # Record the errored task so the saved set covers every task the live run
+                # scored; otherwise an offline re-score divides by a smaller denominator.
+                saved.append({"id": t["id"], "label": label, "verdict": False, "matched": [],
+                              "keywords": t["metadata"]["keywords"], "review": "",
+                              "error": type(e).__name__})
             continue
         passed += ok
         detail.append(f"{'+' if ok else '-'}{t['id']}")
