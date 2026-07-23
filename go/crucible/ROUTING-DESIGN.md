@@ -1,5 +1,12 @@
 # Test-gated model routing — design spec (grounded in the go_dev_bench evidence)
 
+> STATUS: IMPLEMENTED in builder/ (commits 56a868d FleetCoder · 3ded2c1 _fix_loop
+> escalation · 126a063 RoleRoutingCoder composition · a36a445 --fleet CLI). Suite 333 -> 351
+> green, backward-compatible (no --fleet = unchanged). Activate:
+> `builder ... --fleet go-dev-final,go-dev-14b@<14b-url>`. Only live serving of the members
+> (D2/D3 below) remains — the logic is done and offline-tested. Sections below are the
+> rationale that shaped it.
+
 This is the concrete next build the measurement work points to. It is written to be
 decision-forcing: the empirical case is settled below; what remains are three choices
 (§4) that only the project owner should make, after which implementation is mechanical.
