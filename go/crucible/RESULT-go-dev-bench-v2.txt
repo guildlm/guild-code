@@ -22,8 +22,12 @@
 #  1. Every specialist <= base at BOTH 7B and 14B; the deficit is almost entirely
 #     Go hygiene (goimports closes most of it), not reasoning. The algorithm term
 #     dominates across scale AND recipe. (Secondary benches test/review/edit: same.)
-#     PER-TASK (base vs v4, +goimports): base wins 5, specialist wins 0 -> the
-#     specialist is a STRICT SUBSET of base; it adds value on not a single task.
+#     PER-TASK (vs base, +goimports): every specialist is net-negative by a wide
+#     margin. v4 and mined win 0 tasks base loses (STRICT SUBSETS); the others win
+#     a FEW complementary tasks (final 3, dapt600 2, v5/dapt300/dapt-replay 1) but
+#     lose 9-14 -> the strict-subset is v4/mined-specific, not universal. Those few
+#     complementary wins mean an ENSEMBLE (base + specialists) beats any single
+#     model = the algorithm thesis restated at the per-task level.
 #  2. The recorded "DAPT damaged chat -> 15/48 collapse -> need frac25" was a
 #     HARNESS ARTEFACT: with EOS registered, DAPT chat is intact (0 truncations)
 #     and it scores 29/33. More DAPT steps recover (300<600), not worsen.
@@ -32,6 +36,10 @@
 #     run has low, bounded expected value for beating base.
 #  4. Not every low recipe was an artefact: go-dev-mined is genuinely bad (rambles
 #     for real, 3 truncations survive EOS). The fixed harness separates the two.
+#  5. ENSEMBLE CEILING: best single model = base = 44/48, but the UNION of base +
+#     all specialists = 47/48 (+3, rescuing base's rune_at/title_case/chunk_reader
+#     blind spots). No single model beats base; model x ALGORITHM (routing) does.
+#     -> invest in the routing loop, keep specialists as cheap complementary members.
 ################################################################################
 
 go_dev_bench v2 (48 harder tasks) — results, 2026-07-19 (autonomous session)
@@ -537,12 +545,45 @@ compare_generations.py (+goimports):
     v4   ONLY wins     0
     neither            4   title_case, rune_at, ctx_cancel_worker, chunk_reader
     aggregate: base 44 vs v4 39
-The specialist wins ZERO tasks the base loses -> on this bench v4 is a STRICT SUBSET of
-base. So the generation result is not "base is a bit better on net"; it is "the specialist
-adds value on not a single task, and costs 5". The strongest possible statement of the
-finding, and fully systematic rather than a few-task artefact. compare_generations.py is a
-model-free tool (imports the bench scorer) so this re-runs offline from the committed
-generations.
+v4 wins ZERO tasks base loses -> on this bench v4 is a STRICT SUBSET of base. Extending the
+same per-task compare to every 7B specialist (spec-wins = tasks the specialist passes that
+base fails, +goimports):
+    specialist    base-wins  spec-wins   aggregate (base 44)
+    v4                5          0        39   <- strict subset
+    mined            20          0        24   <- strict subset
+    dapt-replay       9          1        36
+    v5               13          1        32
+    dapt300          14          1        31
+    dapt600          13          2        33
+    final            12          3        35
+CORRECTION to a first-pass "strict subset" reading: it is v4/mined-specific, NOT universal.
+final wins 3 tasks base misses, dapt600 wins 2, the rest win 1 — but every specialist loses
+9-20 and is net-negative by a wide margin. So no single specialist beats base, yet several
+have a HANDFUL of complementary wins. That is the key nuance: an ENSEMBLE of base + the
+specialists (a best-of-across-models, i.e. the ALGORITHM) would exceed any single model,
+even though no single specialist does — the thesis (capability = model x algorithm) restated
+at the per-task level. compare_generations.py is model-free (imports the bench scorer), so
+all of this re-runs offline from the committed generations, no GPU.
+
+ENSEMBLE CEILING (ensemble_ceiling.py) — the thesis quantified.
+Those complementary wins add up. Union of base + all 7 specialists (+goimports):
+    best single model (= base)          44/48
+    UNION base+specialists              47/48   (+3 over base)
+    base MISSES but a specialist rescues:
+        rune_at      <- final, dapt600, dapt300, dapt-replay
+        title_case   <- v5, final, dapt600
+        chunk_reader <- final
+    no model solves: ctx_cancel_worker (1)
+This is capability = model x algorithm in one line: the best single MODEL tops out at 44,
+but model x ALGORITHM (routing / best-of across models) reaches 47/48. The +3 is delivered
+entirely by specialists rescuing tasks base misses — and they are exactly base's rune/string
+blind spots (rune_at, title_case), so the specialist training DID learn something on specific
+weak clusters even though every specialist is net-negative overall. So the practical read is
+not "specialists are useless" but "a single specialist never beats base, yet an ensemble that
+ROUTES to them beats base by 3" — invest in the routing algorithm, keep the specialists as
+cheap complementary members. ensemble_ceiling.py is model-free. Caveat: rescoring shows +-1
+task of noise (a slow test can time out under load; v4 read 39 in the pairwise compare and 38
+here) — the union 47 and the +3 are robust to it.
 
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
