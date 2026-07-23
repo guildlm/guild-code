@@ -19,21 +19,43 @@ CONCLUSION: routing pays off **iff the selector can run tests**, not just compil
 Builder already has a test gate (it runs the generated project's tests), so the gain is
 capturable there — this is the one place the ensemble's +4 becomes real.
 
+## 1b. Builder architecture check (read src/builder.py) — RESOLVES the key caveat
+
+Two facts from the actual Builder code change the picture in the build's favour:
+- The Builder gates on `GoToolchain.check` = build + vet + test, and PASSING that gate IS
+  success. Unlike go_dev_bench (model scored on HIDDEN tests it cannot see), the Builder's
+  selection signal and its success criterion are THE SAME tests. So the "compile captures 0"
+  caveat is go_dev_bench-specific and does NOT apply here — routing selects on exactly what
+  it is judged by, so more diverse attempts monotonically help.
+- Clean integration points already exist: a pluggable `Coder` protocol (a `FleetCoder` drops
+  in with no core-loop change), an existing role router (`_by_role`), and `_fix_loop` which
+  already carries a `candidates` (best-of-N per file) budget and repairs via the coder against
+  the gate. Fleet-routing is therefore NOT a rewrite: it is "on a file that keeps failing the
+  gate across rounds, ESCALATE to a different fleet member" inside the existing fix loop.
+
+So the build is smaller and safer than first assumed, and its payoff caveat is lifted for the
+Builder setting specifically.
+
 ## 2. What to build (minimal, in builder/, NOT touching the scoring path)
 
-A `route` step that wraps generation: instead of one model producing one candidate, generate
-from a small fleet and let the Builder's EXISTING gate pick.
+Concretely, given §1b, the minimal build is:
+1. `FleetCoder(Coder)`: holds an ordered fleet of Coders (each an OpenAICoder pointed at a
+    different model/adapter) + tracks which member is "current". Its `generate` delegates to
+    the current member. New file, ~40 lines.
+2. In `_fix_loop`: track per-file failure rounds (the loop already widens targets on repeated
+    runtime failure — same signal). When a file has failed the gate for K rounds under the
+    current member, ADVANCE the FleetCoder to the next member for that file's repairs. The
+    gate/candidates machinery is unchanged; only the coder the repair calls escalates.
 
-    for model in fleet:                      # base first (best single model)
-        cand = generate(model, prompt)
-        if gate(cand) == PASS:               # gate = compile + vet + project tests
-            return cand                      # first gate-passing candidate wins
-    return best_by_gate_progress(cands)      # none fully pass -> the one that got furthest
+    # sketch of the escalation, inside the existing per-file repair path:
+    if stubborn[path] >= ESCALATE_AFTER and fleet.has_next():
+        fleet.advance()                      # base -> final -> 14b for THIS file
+        stubborn[path] = 0
 
-Base first means the fleet is only consulted when base's candidate FAILS the gate — so the
-cost is ~1 model call on the tasks base already solves (the majority) and grows only on the
-hard tail. This is the realizable analogue of the oracle union, with the test gate standing
-in for the oracle.
+Base first means the fleet is only consulted when base's candidate keeps FAILING the gate —
+so the cost is ~0 extra calls on the tasks base already solves (the majority) and grows only
+on the hard tail. Passing the gate is success, so escalating to a model that gets a task base
+misses (final: rune/string; 14b: concurrency) directly converts to a green build.
 
 ## 3. Why it should work where compile-gating failed
 
