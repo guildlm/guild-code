@@ -399,3 +399,46 @@ always producing correct behaviour. Recording the miss.
 
 Both models rise substantially (+5, +7), so ~10% of every recorded generation number on
 this bench was import hygiene the real Builder loop already repairs with a gate.
+
+================================================================================
+DAPT RE-CHECK (2026-07-23) — the "DAPT chat is broken" conclusion was a harness
+artefact; the 15/48 "collapse" was ~half the EOS-registration bug
+================================================================================
+The record said DAPT damaged chat (behavior_probe) and collapsed the bench to ~15/48,
+which motivated building the frac25 higher-replay corpus for a Kaggle retrain. Both the
+probe and the bench were run BEFORE <|im_end|> was registered as EOS. Re-checking
+go-dev-dapt600 with the current (EOS-registered) harness:
+
+  behavior_probe (chat integrity), n=6:
+    BASE            CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
+    go-dev-dapt600  CHAT BEHAVIOUR INTACT  (6/6 stopped + fenced)
+
+  go_dev_bench, greedy, FIXED harness:
+    go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
+                    ZERO truncations across all 48 prompts
+    + goimports (offline)  33/48 · compiles 41/48 (goimports changed 13 gens)
+
+  For comparison (same fixed harness): base 39 (+goimports 44) · SFT v4 33 (+goimports 40).
+
+TWO corrections:
+  1. DAPT chat is INTACT, not damaged. 6/6 on the probe AND 0 truncations across the 48
+     bench prompts = 54 prompts that all stop cleanly. The "damaged" reading was the
+     EOS-registration silent-fail (nothing stopped generation at <|im_end|>, so the model
+     rambled to the cap and read as damaged). Note this model used only the 13% chat-replay
+     the record called "insufficient to keep chat alive through 600 steps" — yet chat
+     survives once EOS is registered.
+  2. The 15/48 collapse was ~half harness artefact: fixed-harness raw is 29/48, +goimports
+     33/48. DAPT still regresses capability (33 vs base 44 with goimports = a real -11), but
+     it does NOT destroy chat or collapse the bench.
+
+IMPLICATION: the frac25 corpus was built to FIX CHAT, but chat is not broken at 13% replay,
+so that motivation is undercut. The open DAPT question is narrower and different: does DAPT
+help CAPABILITY at all (currently net-negative, 33 vs base 44), which a replay fraction does
+not address. Retraining to "repair chat integrity" is chasing a bug that lived in the probe,
+not the model.
+
+CAVEATS: re-benched go-dev-dapt600 specifically (there are other DAPT checkpoints:
+dapt300, dapt600-ck*, dapt-replay); the historical "~15" was old-harness and may be a
+different checkpoint, so the doubling is directional, not a same-artefact delta. Greedy,
+n=6 probe. Generations committed (data/go_dev_bench_dapt600_greedy.jsonl) — re-scores
+offline with rescore_dev_bench.py, no GPU.
