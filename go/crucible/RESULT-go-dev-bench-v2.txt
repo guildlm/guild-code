@@ -429,6 +429,22 @@ go-dev-dapt600 with the current (EOS-registered) harness:
   steps — whether it ever reaches base is an open Kaggle question, not a chat-repair one.
   dapt300 generations committed (data/go_dev_bench_dapt300_greedy.jsonl).
 
+DID THE OTHER LOW RECIPES ALSO INFLATE-LOW FROM THE EOS BUG? (go-dev-mined) — NO, genuine.
+The record flagged go-dev-mined (21), mixed-v5 (26), final (29) as "possibly harness
+artefact" (they ramble). DAPT proved that story true for itself (15->29), so the natural
+hypothesis is the rambling SFT recipes are the same. Re-benched go-dev-mined with the
+EOS-fixed harness:
+    go-dev-mined  23/48 raw · 24/48 +goimports · compiles 35/48 · 3 truncations REMAIN
+Unlike DAPT it did NOT jump (recorded 21 -> 24 with every fix on). Three truncations
+SURVIVE EOS registration = the model genuinely runs away on those prompts (real damage,
+not the stop-token bug). goimports barely helps (+1, changed 3 gens, vs base +5/19) and
+passes-given-compiles is 24/36 = 67% (base 93%, DAPT 83%) = it writes compiling-but-WRONG
+code far more often. So go-dev-mined is a GENUINELY bad recipe (the mining data hurt it,
+-20 vs base 44), NOT an EOS artefact. LESSON: the DAPT harness-artefact correction does
+not generalise — the fixed harness cleanly separates artefact-low (DAPT 15->33) from
+genuine-low (mined 21->24). Measuring beat assuming; the hypothesis that mined was also
+inflated-low was refuted. Generations committed (data/go_dev_bench_mined_greedy.jsonl).
+
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
                     ZERO truncations across all 48 prompts
