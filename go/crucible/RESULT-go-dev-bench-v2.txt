@@ -474,6 +474,22 @@ beats base+goimports; the algorithm term dominates across scale. Generations com
 (data/go_dev_bench_{base14b,spec14b}_greedy.jsonl). Caveat: one 14B specialist checkpoint,
 greedy, N=48.
 
+DOES REPLAY-MIX DAPT HELP CAPABILITY? (go-dev-dapt-replay) — a LITTLE, not enough.
+The refocused DAPT question (chat is fine, so does DAPT ever help capability?) has a local
+proxy: go-dev-dapt-replay is SFT on a REPLAY-mix DAPT base, the same idea as the frac25
+corpus. Fixed harness:
+    go-dev-dapt-replay  30/48 raw · 36/48 +goimports · compiles 33/48 · 1 truncation
+Replay-mix DAPT is the BEST DAPT variant: 36 +goimports vs plain DAPT600's 33 (+3), so
+replay DOES recover some capability. But it is still below plain SFT (v4 40) and base (44).
+Updated ranking (+goimports):
+  base 44 > v4 40 > dapt-replay 36 > final 35 > DAPT600 33 > v5 32 > DAPT300 31 > mined 24
+READ FOR THE KAGGLE DECISION: replay helps DAPT recover, but even the best DAPT (36) loses
+to the simpler plain-SFT (40) and to base (44). frac25 (more replay, 23% vs this one) might
+add a little more, but DAPT's ceiling here is below base, so DAPT — replay or not — is a
+net-negative path to beating base. The remaining upside of a frac25 Kaggle run is small and
+bounded by this trend. Generations committed (data/go_dev_bench_daptreplay_greedy.jsonl).
+Caveat: this adapter's exact replay fraction is unknown (may differ from frac25's 23%).
+
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
                     ZERO truncations across all 48 prompts
