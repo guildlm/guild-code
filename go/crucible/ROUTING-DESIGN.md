@@ -118,18 +118,30 @@ per port. Recommended serving = one persistent server per member (D2 option b), 
     mlx_lm.server --model mlx-community/Qwen2.5-Coder-14B-Instruct-4bit \
                   --adapter-path .mlx-adapters/go-dev-14b              --port 8082
 
-Then run the Builder against the fleet (the model LABELS are free — the PORT picks the
-model, since mlx_lm.server serves whatever it loaded):
+Then run the Builder against the fleet. IMPORTANT (learned from a live smoke): the model
+NAME must be the model ID each server loaded — mlx_lm.server treats the request's ``model``
+field as a model to LOAD (a made-up label 404s against HuggingFace); the PORT is what
+selects the adapter, so both 7B members use the SAME 7B id on different ports. The command
+is ``guildlm-build main`` (a subcommand), not a bare ``builder``:
 
-    builder <spec.yaml> <out-dir> \
-        --base-url http://localhost:8080/v1 --model base \
-        --fleet 'final@http://localhost:8081/v1,go14b@http://localhost:8082/v1'
+    M7=mlx-community/Qwen2.5-Coder-7B-Instruct-4bit
+    M14=mlx-community/Qwen2.5-Coder-14B-Instruct-4bit
+    guildlm-build main --spec <spec.yaml> --out <out-dir> \
+        --base-url http://localhost:8080/v1 --model "$M7" \
+        --fleet "$M7@http://localhost:8081/v1,$M14@http://localhost:8082/v1"
 
-Verify it routed: the log prints ``impl fleet: base -> final, go14b`` at start, and
+Verify it routed: the log prints ``impl fleet: <base> -> <members>`` at start, and
 ``escalating <file> to the next fleet member`` when a file is handed on. Memory: the three
 servers co-resident are ~4+4+8 = 16GB; if that is too much, drop to {base, go-dev-14b} (2
 ports, ~12GB — 14b alone still rescues ctx_cancel_worker) or use D2 option (c) and start
 the 14b server only for a spec whose builds stall. Cheapest correct sizing, per D1/D2.
+
+VALIDATED LIVE (2026-07-24): base :8080 + go-dev-final :8081, then the command above on
+specs/demo-small.yaml (stringkit — rune Reverse + IsPalindrome, the rune/string niche).
+The --fleet path constructed the fleet and generated a GREEN build (independent `go test`
+ok, Unicode-safe rune reversal). Base greened it first-try so escalation did not fire —
+expected: escalation is for the hard tail, and the offline test
+(test_fleet_escalates_to_a_member_that_can_fix_it) proves that path with real go.
 
 ## 6. Explicit non-goals / risks
 - Not a replacement for training better specialists — it is orthogonal (routing multiplies
