@@ -37,9 +37,12 @@
 #  4. Not every low recipe was an artefact: go-dev-mined is genuinely bad (rambles
 #     for real, 3 truncations survive EOS). The fixed harness separates the two.
 #  5. ENSEMBLE CEILING: best single model = base = 44/48, but the UNION of base +
-#     all specialists = 47/48 (+3, rescuing base's rune_at/title_case/chunk_reader
-#     blind spots). No single model beats base; model x ALGORITHM (routing) does.
-#     -> invest in the routing loop, keep specialists as cheap complementary members.
+#     all specialists = 47/48 (+3); ADD the 14B models and the diverse fleet hits
+#     48/48 (100%) — the 14B specialist alone rescues ctx_cancel_worker. No single
+#     model beats base; model x ALGORITHM (routing across a diverse fleet) saturates
+#     the bench. Each member owns a niche (base backbone, 7B specialists rune/string,
+#     14B specialist concurrency). -> invest in the routing loop; specialists earn
+#     their place as cheap complementary members, not as standalone replacements.
 ################################################################################
 
 go_dev_bench v2 (48 harder tasks) — results, 2026-07-19 (autonomous session)
@@ -584,6 +587,23 @@ ROUTES to them beats base by 3" — invest in the routing algorithm, keep the sp
 cheap complementary members. ensemble_ceiling.py is model-free. Caveat: rescoring shows +-1
 task of noise (a slow test can time out under load; v4 read 39 in the pairwise compare and 38
 here) — the union 47 and the +3 are robust to it.
+
+ADD THE 14B MODELS -> the diverse ensemble SATURATES the bench. Union of 7B base + 7 7B
+specialists + 14B base + 14B specialist (+goimports):
+    best single model (= 7B base)   44/48
+    UNION all 10 models             48/48   (+4 over base, 100%)
+    base misses but SOME model rescues: rune_at, title_case, chunk_reader, ctx_cancel_worker
+    ctx_cancel_worker (the ONE task no 7B model solved) <- go-dev-14b ONLY
+    tasks no model solves: 0
+The lone remaining hole (a concurrency/context-cancellation task) is closed by the 14B
+specialist and NOTHING else. So a size-and-recipe-diverse fleet routed by an algorithm
+reaches 100% while the best single model is 92% — capability = model x algorithm, and here
+the algorithm term is worth +4/48 (8 points) of exactly the coverage no single model has.
+Every member earns its place: base is the backbone, the 7B specialists own rune/string
+edge cases, the 14B specialist owns the one concurrency case. This is the constructive form
+of the whole session's negative results: "no single specialist beats base" AND "an ensemble
+that routes across them beats base and saturates the bench" are the same finding seen from
+the two sides of model x algorithm.
 
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
