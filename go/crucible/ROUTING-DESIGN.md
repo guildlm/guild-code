@@ -143,6 +143,26 @@ ok, Unicode-safe rune reversal). Base greened it first-try so escalation did not
 expected: escalation is for the hard tail, and the offline test
 (test_fleet_escalates_to_a_member_that_can_fix_it) proves that path with real go.
 
+## 5c. LIVE escalation demo (2026-07-24) — the mechanism fires; rescue is target-bounded
+
+To exercise an actual escalation live, a deliberately-weak fleet {1.5B base :8080, 7B :8081}
+was run on stringkit. Result, verbatim from the log:
+  - round 1: 1.5B's build fails (`undefined: Reverse` at the test's call site);
+  - round 2: still failing -> `escalating stringkit_test.go to the next fleet member` — the
+    ESCALATION FIRES LIVE with real model serving (the last unproven combination; the offline
+    test already proves escalate->green with real go);
+  - rounds 3-6: still `undefined: Reverse`; no convergence.
+Diagnosis: 1.5B's stringkit.go defines Reverse correctly, so `undefined: Reverse` is a
+COMPILE CASCADE — another part of the impl fails to compile, the file is dropped, and Reverse
+looks undefined at the TEST's call site. The fix loop targets the file the error NAMES (the
+test), so escalation moved the test to 7B while the impl root-cause stayed on 1.5B and was
+never fixed. So: escalation is only as good as the fix loop's file TARGETING — escalating the
+error-named file cannot help when the root cause is another file. This is a pre-existing
+target-selection behaviour (not a routing bug), but it bounds routing's benefit and is the
+natural next improvement: when escalating, prefer the file the missing symbol should be
+DEFINED in, not merely where it is referenced. (The healthy-base smoke in 5b greened first
+try, so this only surfaces with a base weak enough to emit cascading impl errors.)
+
 ## 6. Explicit non-goals / risks
 - Not a replacement for training better specialists — it is orthogonal (routing multiplies
   whatever members you have).
