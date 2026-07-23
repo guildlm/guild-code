@@ -164,12 +164,14 @@ calls), each kept `package stringkit_test` + bare `Reverse`, so the error persis
 CONCLUSION: this is a repair-quality limit on a specific structural error (external test
 package + bare symbol), NOT a targeting problem — escalation put the file in front of the
 stronger model, but the fix prompt did not steer either model to the structural rewrite.
-It is a weak-model artefact: the healthy 7B-only smoke (5b) greened stringkit first try. The
-genuine (marginal) improvements are therefore (a) a deterministic gate that rewrites a
-`package X_test` file to `package X` when it references bare package symbols, or (b) a fix-
-prompt hint about external-test-package qualification — both help weak bases, neither is
-needed for the recommended {base-7B, final, 14b} fleet. NOTE: this corrects the earlier
-"escalate the definition file" suggestion, which was based on the wrong (cascade) diagnosis.
+It is a weak-model artefact: the healthy 7B-only smoke (5b) greened stringkit first try.
+FIX SHIPPED: improvement (a) is now a deterministic gate — builder `_fix_external_test_package`
+(commit 4bdbc6c) rewrites `package X_test` -> `package X` when a *_test.go references bare
+symbols X declares. Verified end-to-end on this demo's ACTUAL files: the gate rewrites the
+clause and `go test` goes green — the exact failure neither model could repair, now fixed
+deterministically for ANY model (suite 351 -> 355). So the demo surfaced a real builder gap
+and it is closed. NOTE: this corrects the earlier "escalate the definition file" suggestion,
+which was based on the wrong (cascade) diagnosis.
 
 ## 6. Explicit non-goals / risks
 - Not a replacement for training better specialists — it is orthogonal (routing multiplies
