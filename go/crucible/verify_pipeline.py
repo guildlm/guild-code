@@ -19,6 +19,11 @@ Gates:
   3. benchmark data integrity (verify_bench on each bench)
   4. review scoring is still gameable under the recorded rule, and still NOT gameable
      under the strict one, and the strict one still credits genuine reviews
+
+Deliberately NOT a gate here: check_contamination.py. It is model-free too, but it needs
+the training corpora (--train), which are gitignored and 170MB+ — absent from any CI
+checkout, so wiring it would fail for lack of data, not for real contamination. It stays a
+local pre-flight; run it by hand when a bench or a training set changes.
 """
 import os
 import subprocess
