@@ -103,6 +103,34 @@ D3. COST CEILING. Base-first means N model calls only on gate-failing tasks. Set
   fix-rounds and green-rate to single-model (the builder A/B already established base≈spec
   single-model; routing should show base < routed).
 
+## 5b. ACTIVATION RUNBOOK (verified commands — the D2 last mile)
+
+All three fleet pieces exist locally and `mlx_lm.server` serves a base + optional adapter
+per port. Recommended serving = one persistent server per member (D2 option b), three ports:
+
+    # from the repo root, with the mlx venv's python (.mlx-venv/bin/python -m mlx_lm.server)
+    # member 0 (base 7B):
+    mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit  --port 8080
+    # member 1 (go-dev-final = 7B base + adapter):
+    mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit \
+                  --adapter-path .mlx-adapters/go-dev-final            --port 8081
+    # member 2 (go-dev-14b = 14B base + adapter):
+    mlx_lm.server --model mlx-community/Qwen2.5-Coder-14B-Instruct-4bit \
+                  --adapter-path .mlx-adapters/go-dev-14b              --port 8082
+
+Then run the Builder against the fleet (the model LABELS are free — the PORT picks the
+model, since mlx_lm.server serves whatever it loaded):
+
+    builder <spec.yaml> <out-dir> \
+        --base-url http://localhost:8080/v1 --model base \
+        --fleet 'final@http://localhost:8081/v1,go14b@http://localhost:8082/v1'
+
+Verify it routed: the log prints ``impl fleet: base -> final, go14b`` at start, and
+``escalating <file> to the next fleet member`` when a file is handed on. Memory: the three
+servers co-resident are ~4+4+8 = 16GB; if that is too much, drop to {base, go-dev-14b} (2
+ports, ~12GB — 14b alone still rescues ctx_cancel_worker) or use D2 option (c) and start
+the 14b server only for a spec whose builds stall. Cheapest correct sizing, per D1/D2.
+
 ## 6. Explicit non-goals / risks
 - Not a replacement for training better specialists — it is orthogonal (routing multiplies
   whatever members you have).
