@@ -1,0 +1,60 @@
+# Model-free integrity gates for the crucible benchmarks.
+#
+# Twice in one session a benchmark conclusion turned out to be a harness artefact
+# (an unterminated ```go fence scored as invalid Go — in three harnesses at once —
+# and a keyword rule a canned checklist could game). Each fix shipped with its own
+# checker, and go/crucible/verify_pipeline.py runs all of them. A checker nobody
+# runs is not a gate; this workflow is what runs it.
+#
+# The whole pipeline is deterministic and needs no model or GPU — only the Go
+# toolchain, goimports, and Python stdlib — which is exactly why it CAN gate CI,
+# unlike builder/'s mutation suite that needs generated model artefacts.
+name: crucible integrity gates
+
+on:
+  push:
+    paths:
+      - "go/crucible/**"
+      - ".github/workflows/crucible-gates.yml"
+  pull_request:
+    paths:
+      - "go/crucible/**"
+      - ".github/workflows/crucible-gates.yml"
+
+# A newer push to the same ref supersedes an in-flight run.
+concurrency:
+  group: crucible-gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install goimports (the pipeline's only non-stdlib dependency)
+        run: |
+          go install golang.org/x/tools/cmd/goimports@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Sanity — toolchain the gate depends on
+        run: |
+          go version
+          goimports -h >/dev/null 2>&1 && echo "goimports: present"
+          python3 --version
+
+      # verify_pipeline resolves its own directory, so it runs from anywhere.
+      # Exit 0 = every crucible integrity gate is green.
+      - name: Run every crucible integrity gate
+        run: python3 go/crucible/verify_pipeline.py
