@@ -22,6 +22,8 @@
 #  1. Every specialist <= base at BOTH 7B and 14B; the deficit is almost entirely
 #     Go hygiene (goimports closes most of it), not reasoning. The algorithm term
 #     dominates across scale AND recipe. (Secondary benches test/review/edit: same.)
+#     PER-TASK (base vs v4, +goimports): base wins 5, specialist wins 0 -> the
+#     specialist is a STRICT SUBSET of base; it adds value on not a single task.
 #  2. The recorded "DAPT damaged chat -> 15/48 collapse -> need frac25" was a
 #     HARNESS ARTEFACT: with EOS registered, DAPT chat is intact (0 truncations)
 #     and it scores 29/33. More DAPT steps recover (300<600), not worsen.
@@ -523,6 +525,24 @@ add a little more, but DAPT's ceiling here is below base, so DAPT — replay or 
 net-negative path to beating base. The remaining upside of a frac25 Kaggle run is small and
 bounded by this trend. Generations committed (data/go_dev_bench_daptreplay_greedy.jsonl).
 Caveat: this adapter's exact replay fraction is unknown (may differ from frac25's 23%).
+
+PER-TASK: IS THE GAP SYSTEMATIC OR A FEW TASKS? (base vs v4) — a STRICT SUBSET.
+The aggregate -4/-5 gap does not say whether the specialist loses everywhere or wins
+somewhere. Re-generated base and v4 (base 39/48 reproduced EXACTLY; v4 34 vs recorded 33
+= one-task greedy drift, likely an mlx_lm delta between sessions), committed the generations
+(the headline pair was the only one not offline-reproducible), and compared per task with
+compare_generations.py (+goimports):
+    both pass         39
+    base ONLY wins     5   group_parity, rle_decode, merge_channels, group_anagrams, min_heap
+    v4   ONLY wins     0
+    neither            4   title_case, rune_at, ctx_cancel_worker, chunk_reader
+    aggregate: base 44 vs v4 39
+The specialist wins ZERO tasks the base loses -> on this bench v4 is a STRICT SUBSET of
+base. So the generation result is not "base is a bit better on net"; it is "the specialist
+adds value on not a single task, and costs 5". The strongest possible statement of the
+finding, and fully systematic rather than a few-task artefact. compare_generations.py is a
+model-free tool (imports the bench scorer) so this re-runs offline from the committed
+generations.
 
   go_dev_bench, greedy, FIXED harness:
     go-dev-dapt600  pass@1 29/48 · compiles 35/48 · passes-given-compiles 29/35
