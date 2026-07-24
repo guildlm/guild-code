@@ -280,3 +280,34 @@ COMPLEMENTARY ABLATION + CORRECTION — the members are COMPLEMENTARY; my earlie
   - Cost caveat still stands (the 14b dominates wall clock), so the trade is "the full fleet
     wins but is the expensive option"; if forced to two, {base,14b} beat {base,7B} on the clean
     spec (2/3 vs 1/3) but neither reached green. N=2 specs, single deterministic runs.
+
+
+BEST-OF-N vs ROUTING — the two algorithm levers fix DIFFERENT failure classes (shortener)
+  Shortener's confound was base's own degenerate test generation. Best-of-N (sample N per file,
+  keep the first that parses) is the cheaper, single-model lever aimed exactly at that. So:
+  does base ALONE with best-of-N solve shortener, making the fleet unnecessary there?
+
+    base, candidates=1, no fleet     2/3   (degenerate gen; 9 parse-rejects over the run)
+    base, candidates=3, no fleet     2/3   (degenerate gen AVOIDED; 1 parse-reject; test parses)
+    base, candidates=1, 3-member     3/3   (routing)
+
+  Best-of-N did its job: shortener_test.go now parses (117 lines of real test, not a digit
+  string). But the SCORE did not move — still 2/3 — because the binding constraint was never the
+  sampling failure. It is the SEMANTIC one: TestStatsCountsOneHit still fails with EOF (the test
+  decodes the body of a 301 redirect), the exact bug base re-derives every round and only an
+  escalated member fixed. Best-of-N resamples the SAME model, which reproduces the same
+  semantic mistake in every draft; it cannot escape a capability gap, only a sampling one.
+
+  ==> The two algorithm levers are COMPLEMENTARY and address different failure classes:
+        best-of-N  -> sampling failures (degenerate / non-parsing drafts): FIXED it.
+        routing    -> capability failures (semantically wrong code re-derived every round): FIXED it.
+  Best-of-N could not substitute for routing on shortener — the fleet's 3/3 is a genuine
+  capability gain, not a sampling artifact that a cheaper lever would have caught. It also means
+  the "shortener is confounded" caveat from the composition ablation is now precise: best-of-N
+  removes the degenerate-generation confound and the fleet STILL wins (3/3 vs best-of-N's 2/3),
+  so the composition matrix's shortener column understated, not overstated, routing's value.
+
+  THESIS NOTE (model x ALGORITHM): the "algorithm" term is not one thing. It decomposes into at
+  least two orthogonal levers with distinct jobs — best-of-N for the model's variance, routing
+  for the model's ceiling. A blanket "the algorithm dominates" hides which lever is doing the
+  work on which failure. The honest per-failure-class statement is what this run buys.
