@@ -63,3 +63,10 @@ META-LESSON (the project's own rule, applied to itself)
   discipline applies one layer down — probe the SERVER with something whose answer you
   already know. The adapter was "obviously" loaded because the flag was on the command line;
   the flag was on the command line and did nothing. Verify the instrument, not the intent.
+
+CLOSING THE LOOP (live, not just fixtures)
+  The same control was re-run against the PATCHED fleet — :8080 base, :8081 go-dev-final,
+  :8082 go-dev-14b — and passed: "all 3 ports returned distinct text". So check_serving.py
+  is demonstrably non-vacuous in the real setting, not only against planted fixtures: it
+  FIRED on the broken serving (byte-identical ports) and is QUIET on the fixed serving.
+  That is the pair of observations a checker needs before anyone should trust it.
