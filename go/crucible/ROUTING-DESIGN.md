@@ -200,3 +200,26 @@ which was based on the wrong (cascade) diagnosis.
 - Latency and memory are the real costs; the base-first + rare-14b policy is what keeps them
   bounded. If base passes the gate on most tasks, routing is nearly free; if not, it is N×.
 - Do not route by compile/vet alone — realizable_router.py proves that buys nothing here.
+
+## 5d. SCALED MEASUREMENT (2026-07-24) — routing turns a RED build GREEN
+
+The first project-scale A/B with genuinely-adapted members (see the serving warning in 5b).
+Same spec, same 8-round budget, same base; the only intervention is `--fleet`.
+
+    specs/shortener.yaml     score          escalations   wall
+      base-only              2/3  RED  (test fails)   0     719s
+      base-first fleet       3/3  GREEN             12    1174s
+
+Independently re-verified: `go test ./...` ok (fleet) vs FAIL (base). The base burned its
+whole budget re-writing the SAME wrong test nine times — it JSON-decoded the body of a 301
+redirect (`GET /r/{code}`), which the spec explicitly tells it not to do. An escalated member
+returned the file structurally correct. That is exactly the model-shaped tail the gate
+campaign refused to gate, absorbed by routing instead.
+
+Honest other half: escalation is NOT monotone. Both arms hit the same `Encode(62)=="01"`
+codec bug; the BASE fixed it unaided, while in the fleet arm that file had been escalated and
+the bug survived two rounds before recovering. Routing is a trade whose net sign must be
+measured. Cost: +63% wall clock. Granularity: when the fix loop widens to package-wide
+repair, escalation goes fleet-wide rather than staying targeted — an open improvement.
+
+Full write-up, caveats, and the discarded first attempt: RESULT-fleet-ab.txt.

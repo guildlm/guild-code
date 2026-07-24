@@ -1,0 +1,70 @@
+RESULT — fleet routing at PROJECT scale: base-only vs base-first fleet (2026-07-24)
+==============================================================================
+
+THE QUESTION THIS ANSWERS
+  go_dev_bench proved an ORACLE ceiling: no single model beats the base (44/48), yet a
+  {base, go-dev-final, go-dev-14b} union solves 48/48. realizable_router.py then tempered
+  it: a compile/vet-gated router captures ZERO of that +4, because the base's wrong answers
+  COMPILE. The open question was whether the Builder — whose gate is build+vet+TEST, i.e. a
+  real test signal, the thing the bench lacked — converts the ceiling into a real win on a
+  whole multi-file project. Everything before this was unit-task or plumbing-level.
+
+DESIGN (what makes this causal, not anecdotal)
+  Same spec, same 8-round budget, same base model and port for member 0 in both arms; the
+  ONLY intervention is whether --fleet is passed. The coder is deterministic per
+  (prompt, temperature), so the two arms are BYTE-IDENTICAL until an escalation fires —
+  every file that ends up differing is the routing's own footprint.
+
+RESULT — specs/shortener.yaml (the family with 14 archived historical failures)
+                      score       stages                   escalations   wall
+    base-only         2/3  RED    build+vet ok, TEST FAIL      0          719s
+    base-first fleet  3/3  GREEN  build+vet+test ok           12         1174s
+  Independently re-verified outside the harness: `go test ./...` -> ok (fleet), FAIL (base).
+  Base exhausted its whole budget (9 rounds incl. extensions) and stayed red. 5 source files
+  diverged (codec.go, handlers.go, router.go, store.go, shortener_test.go); go.mod and
+  main.go stayed byte-identical.
+
+  ==> ROUTING CONVERTED A BUILD THE BASE COULD NOT COMPLETE INTO A GREEN ONE. This is the
+  first project-scale evidence for the thesis's algorithm term: same base model, same
+  budget, the only difference is that stuck files get handed to another member.
+
+WHAT THE BASE COULD NOT FIX (the rescue, concretely)
+  TestStatsCountsOneHit: the base wrote a test that JSON-decodes the response of
+  `GET /r/{code}` into a Link and reads .Hits from it. But /r/{code} is a 301 REDIRECT with
+  no body, so Decode returns EOF — and the spec SPELLS THIS OUT ("then GET /stats/+code",
+  and it even warns a fresh link would read 0, not 1). The base re-wrote that same wrong
+  test through NINE rounds. After escalation the file came back structurally correct:
+  assert rec2.Code == http.StatusMovedPermanently, then read Hits from /stats/.
+  This is the model-shaped tail the gate campaign deliberately refused to gate (a gate would
+  have to GUESS semantics) — precisely the residue routing is supposed to absorb.
+
+THE HONEST OTHER HALF — ESCALATION IS NOT MONOTONE
+  Both arms independently hit the same codec bug (Encode emits least-significant digit
+  first, so Encode(62)=="01" not "10" — again explicitly warned about in the spec). The
+  BASE repaired it on its own. In the fleet arm codec.go had been escalated, and the bug
+  SURVIVED rounds 4 and 5 under the specialist before later rounds recovered it. So handing
+  a file to another member can LOSE a repair the base would have made; the net sign is a
+  measurement, not a guarantee. Here it netted positive (red -> green), but a fleet is a
+  trade, not a free upgrade.
+
+COSTS AND LIMITS (stated, not buried)
+  - Wall clock: 1174s vs 719s (+63%) — the 14B member's generations dominate. Routing is
+    "nearly free" only while the base carries most files; on a hard spec it is not.
+  - N=1 spec here. taskapipro (16 archived failures) is the second data point.
+  - Once the first escalation fires the arms' error surfaces diverge, so this is a single
+    causal A/B (intervention = routing), NOT a per-file ablation of which member fixed what.
+    The per-file attribution above is read off the artefacts, not from a controlled ablation.
+  - Escalation granularity: when the fix loop WIDENS to package-wide repair, every file in
+    the widened set accumulates its own stuck-counter, so escalation goes fleet-wide (12
+    escalations here) rather than staying targeted. Cheaper, more surgical escalation is an
+    open improvement, not a validated one.
+
+MEASUREMENT INTEGRITY — READ THIS BEFORE REPRODUCING
+  The first attempt at this A/B was INVALID and was thrown away: mlx_lm.server silently
+  ignores --adapter-path (FINDING-serving-adapter-noop.txt), so the "specialist" members
+  were the plain base and the fleet was base->base->14B-base. Caught by a pre-flight control
+  (same prompt to two ports must not return byte-identical text) BEFORE any number was
+  believed. The numbers above were produced with serve_adapter.py, whose output was verified
+  byte-identical to mlx_lm.load(..., adapter_path=...) ground truth. Run
+  `check_serving.py <ports>` before any served A/B; had this gone unnoticed it would have
+  reported "routing does nothing" — the expected result, for a completely spurious reason.
