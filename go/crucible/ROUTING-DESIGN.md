@@ -105,18 +105,31 @@ D3. COST CEILING. Base-first means N model calls only on gate-failing tasks. Set
 
 ## 5b. ACTIVATION RUNBOOK (verified commands — the D2 last mile)
 
-All three fleet pieces exist locally and `mlx_lm.server` serves a base + optional adapter
-per port. Recommended serving = one persistent server per member (D2 option b), three ports:
+All three fleet pieces exist locally. Recommended serving = one persistent server per
+member (D2 option b), three ports.
 
-    # from the repo root, with the mlx venv's python (.mlx-venv/bin/python -m mlx_lm.server)
-    # member 0 (base 7B):
-    mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit  --port 8080
+⚠️ ADAPTER MEMBERS MUST BE SERVED WITH `serve_adapter.py`, NOT `mlx_lm.server`.
+`mlx_lm.server --adapter-path X` (mlx_lm 0.31.3) SILENTLY serves the plain base model —
+it registers the adapter under the key 'default_model' but looks it up by the resolved
+model id, so the lookup misses and the flag becomes a no-op with no error and a 200
+response. A "specialist" port then answers in the base's voice and every downstream A/B
+silently compares base against base. `serve_adapter.py` is a drop-in fix with the same
+CLI. Full evidence + what it retroactively corrects: FINDING-serving-adapter-noop.txt.
+
+    # from the repo root, with the mlx venv's python (.mlx-venv/bin/python)
+    # member 0 (base 7B — no adapter, plain mlx_lm.server is fine):
+    python -m mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit --port 8080
     # member 1 (go-dev-final = 7B base + adapter):
-    mlx_lm.server --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit \
+    python go/crucible/serve_adapter.py --model mlx-community/Qwen2.5-Coder-7B-Instruct-4bit \
                   --adapter-path .mlx-adapters/go-dev-final            --port 8081
     # member 2 (go-dev-14b = 14B base + adapter):
-    mlx_lm.server --model mlx-community/Qwen2.5-Coder-14B-Instruct-4bit \
+    python go/crucible/serve_adapter.py --model mlx-community/Qwen2.5-Coder-14B-Instruct-4bit \
                   --adapter-path .mlx-adapters/go-dev-14b              --port 8082
+
+    # MANDATORY CONTROL before trusting any served A/B — the specialist port must NOT
+    # echo the base. One prompt, two ports, assert the outputs differ:
+    #   curl -s :8080/v1/chat/completions -d "$P" ; curl -s :8081/v1/chat/completions -d "$P"
+    # Identical output means the adapter is not applied (see the FINDING).
 
 Then run the Builder against the fleet. IMPORTANT (learned from a live smoke): the model
 NAME must be the model ID each server loaded — mlx_lm.server treats the request's ``model``
@@ -142,6 +155,14 @@ The --fleet path constructed the fleet and generated a GREEN build (independent 
 ok, Unicode-safe rune reversal). Base greened it first-try so escalation did not fire —
 expected: escalation is for the hard tail, and the offline test
 (test_fleet_escalates_to_a_member_that_can_fix_it) proves that path with real go.
+
+⚠️ CORRECTION (same day, after the serving bug above was found): that smoke was served by
+the UNPATCHED mlx_lm.server, so :8081 was really the plain base — the run was base -> base.
+What it validates therefore stands only for the PLUMBING (the --fleet path builds a fleet,
+routes per file, and yields a green build end-to-end); it does NOT show a specialist member
+was exercised. The 5c escalation demo below is unaffected (its members differ by --model,
+not --adapter-path, so no adapter was needed). Re-validation with genuinely-adapted members
+is what 5d records.
 
 ## 5c. LIVE escalation demo (2026-07-24) — the mechanism fires; rescue is target-bounded
 

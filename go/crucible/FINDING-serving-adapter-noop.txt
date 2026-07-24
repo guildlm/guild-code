@@ -1,0 +1,65 @@
+FINDING — `mlx_lm.server --adapter-path` silently serves the BASE model (2026-07-24)
+==============================================================================
+
+SEVERITY: measurement-integrity. Silent wrong answer, HTTP 200, no warning. Any A/B that
+served a "specialist" through mlx_lm.server was really serving the base on both arms.
+
+HOW IT SURFACED
+  Setting up the scaled fleet A/B (base :8080 vs {go-dev-final :8081, go-dev-14b :8082}),
+  I ran a cheap control BEFORE trusting the numbers: send the SAME prompt to :8080 and
+  :8081 and check they differ. They did not — the two servers returned byte-identical
+  text ("Certainly! Below is a Go function ..."), which no LoRA-tuned model should produce
+  next to its base.
+
+ROOT CAUSE (mlx_lm 0.31.3, mlx_lm/server.py, ModelProvider)
+  __init__:  self._adapter_map["default_model"] = self.cli_args.adapter_path
+  load():    model_path   = self._model_map.get(model_path, model_path)
+             adapter_path = self._adapter_map.get(model_path, adapter_path)
+  The adapter is registered ONLY under the literal key 'default_model', but the lookup on
+  the next line runs AFTER model_path has been rewritten to the real model id. So the
+  lookup misses, adapter_path falls back to the passed-in None, and the server loads a
+  plain base model. Nothing errors: the request 200s in the base model's voice.
+
+PROOF (ground truth vs served)
+  mlx_lm.load(M7, adapter_path='.mlx-adapters/go-dev-final') + generate  ->
+      terse, code-only: "// ReverseRunes reverses s by runes, preserving multi-byte characters."
+  mlx_lm.server --model M7 --adapter-path .mlx-adapters/go-dev-final     ->
+      chatty base voice: "Certainly! Below is a Go function ..." == byte-identical to :8080 base.
+  So the API path applies the adapter and the server path does not — the bug is the server's.
+
+FIX: go/crucible/serve_adapter.py (drop-in replacement, same CLI)
+  Registers the adapter under the RESOLVED model id as well, which is what load() looks it
+  up by. Two lines, no fork of mlx_lm.
+  VERIFIED: the patched server reproduces the mlx_lm.load(..., adapter_path=...) ground
+  truth BYTE-IDENTICALLY, and differs completely from the base. The 14B member on the same
+  code path likewise serves in the specialist voice, distinct from the 7B specialist.
+
+WHAT THIS RETROACTIVELY CORRECTS
+  - ROUTING-DESIGN 5b "LIVE SMOKE VALIDATED (base :8080 + go-dev-final :8081)": that run
+    was really base -> base. What it validated stands for the PLUMBING (the --fleet path
+    constructs a fleet, routes per file, and produces a green build) but NOT for "the
+    specialist member was exercised". Member 1 was the base model wearing its name.
+  - ROUTING-DESIGN 5c live ESCALATION demo ({1.5B :8080, 7B :8081}) is UNAFFECTED and
+    remains valid: those two members differ by --model, not by --adapter-path, so no
+    adapter was needed for them to be genuinely different models.
+  - The recorded bench numbers (go_dev_bench etc.) are UNAFFECTED: mlx_bench.py and friends
+    load adapters through the mlx_lm PYTHON API (load(..., adapter_path=...)), the path
+    proven correct above. Only SERVED (HTTP) specialist runs were hit.
+  - bench_compare-over-Ollama results are unaffected (Ollama serves its own fused GGUFs).
+
+WHY THE CONTROL IS NOW MANDATORY
+  A served specialist that is silently the base is invisible in every downstream number:
+  both arms "work", both look served, and the A/B reports "no difference between base and
+  specialist" — which is exactly the shape of this project's headline thesis result. That
+  makes this the single most dangerous failure mode available to it: it would have
+  CONFIRMED the expected conclusion for a spurious reason. Cheap, mandatory guard before
+  any served A/B:
+      same prompt -> base port and specialist port; assert the outputs DIFFER,
+      and (stronger) assert the specialist port matches mlx_lm.load(..., adapter_path=...).
+  A green pipeline cannot catch this — it is a serving fact, not a data fact.
+
+META-LESSON (the project's own rule, applied to itself)
+  [[measure-before-you-conclude]] says: probe the scorer with something worthless. The same
+  discipline applies one layer down — probe the SERVER with something whose answer you
+  already know. The adapter was "obviously" loaded because the flag was on the command line;
+  the flag was on the command line and did nothing. Verify the instrument, not the intent.
