@@ -236,3 +236,47 @@ ABLATION — is the 14B member worth its cost? It is NECESSARY, not optional.
   and this result (the 7B specialist added nothing here), {base, 14b} is the composition to
   test next. N=2 specs; a degenerate generation is a per-prompt event, so treat the shortener
   regression as "can happen", not "will happen".
+
+
+COMPLEMENTARY ABLATION + CORRECTION — the members are COMPLEMENTARY; my earlier claim was wrong
+  I ran the other 2-member fleet, {base, go-dev-14b} (drop the 7B specialist), to answer
+  whether go-dev-final earns its slot. Full composition matrix now (each cell independently
+  re-verified with the go toolchain; base/full rows from the runs above):
+
+                    shortener   workapi
+    base              2/3         1/3
+    {base, 7B-spec}   1/3         1/3
+    {base, 14b}       1/3         2/3
+    {base, 7B, 14b}   3/3         3/3
+
+  CORRECTION TO THE PRIOR "14B NECESSARY, 7B ADDED NOTHING" ENTRY: that conclusion was drawn
+  from ONE ablation direction (dropping the 14b) and is REFUTED by the other. On the clean
+  spec (workapi): {base,7B}=1/3 and {base,14b}=2/3, but {base,7B,14b}=3/3 — dropping EITHER
+  member costs at least one point. The 7B specialist does contribute: it is the difference
+  between the 14b-fleet's 2/3 and the full fleet's 3/3. The members are COMPLEMENTARY, not
+  "14b does everything". I was wrong to say the 7B added nothing; the single ablation made the
+  14b look sufficient because I had not yet dropped the 7B.
+
+  SHORTENER IS CONFOUNDED — weight workapi. On shortener BOTH 2-member fleets score 1/3, BELOW
+  base's 2/3. Root cause found by reading the log: base ITSELF generates a degenerate
+  shortener_test.go (a repeated-digit string to max_tokens -> unterminated literal; "rejected
+  gen candidate 1: does not parse" at generation, before any escalation). base-only recovers
+  it over its full 8-round budget (-> 2/3). Any fleet escalates the still-broken file away from
+  base at round 2, and a single specialist cannot finish base's job in the rounds left, so both
+  2-member fleets regress. Only the full 3-member ladder navigated around it to 3/3 — and even
+  that is partly escalation-timing luck around a knife-edge degenerate generation, not proof of
+  member capability. So shortener measures escalation TIMING, not composition; the clean signal
+  is workapi.
+
+  HONEST CONCLUSION ON D1 (fleet composition):
+  - The full {base, go-dev-final, go-dev-14b} fleet is the only configuration that reached 3/3
+    on BOTH specs. No 2-member subset reproduced it.
+  - On the clean spec the members are complementary (each 2-member fleet <= 2/3, full = 3/3).
+  - A 2-member fleet can score BELOW base-only when base emits a degenerate generation and the
+    single specialist cannot recover it (shortener). So dropping members is not free.
+  - This VINDICATES go_dev_bench's D1 (keep all three) for a different reason than the unit
+    bench gave: not "each owns a niche in the ceiling" but "at project scale the full ladder is
+    what converts, and 2-member shortcuts either underperform or regress".
+  - Cost caveat still stands (the 14b dominates wall clock), so the trade is "the full fleet
+    wins but is the expensive option"; if forced to two, {base,14b} beat {base,7B} on the clean
+    spec (2/3 vs 1/3) but neither reached green. N=2 specs, single deterministic runs.
