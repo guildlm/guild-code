@@ -72,6 +72,15 @@ def main() -> int:
     ok, out = run([PY, "check_contamination.py", "--self-test"])
     gate("contamination matcher fires on a planted leak (self-test)", ok, out.strip()[-300:])
 
+    # Served A/Bs have a failure mode no DATA gate can see: mlx_lm.server silently ignores
+    # --adapter-path, so a "specialist" port answers as the base and the A/B compares base
+    # to base — reporting "no difference", which is this project's expected result and so
+    # the most dangerous possible false confirmation (FINDING-serving-adapter-noop.txt).
+    # The live control needs servers and cannot be gated here, but its comparison core is
+    # server-free: gate that, so the control can never regress into always-passing.
+    ok, out = run([PY, "check_serving.py", "--self-test"])
+    gate("serving control fires on a duplicated model (self-test)", ok, out.strip()[-300:])
+
     # A shared import is the only thing stopping a fourth copy of the fence bug: assert the
     # harnesses are literally running the same function object, not similar-looking code.
     # extract_code is not the only helper that decides "valid Go / truncated"; _repair_imports
