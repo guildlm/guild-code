@@ -243,3 +243,12 @@ the round budget ran out — so raise the ROUND budget before enlarging the flee
 This also corrected a prediction: per-file escalation DOES resolve cross-file contract
 mismatches, because a contract has a right answer visible from either side, and picking that
 side is a model-quality question. See RESULT-fleet-ab.txt.
+
+### 5d (correction) — "raise the ROUND budget" was tested and FALSIFIED
+
+The paragraph above recommended more rounds before a bigger fleet. Re-running the identical
+taskapipro fleet arm with --max-fix-rounds 16 gave 2/3 again — same score, same two failing
+tests, +4300s — and stopped on "error surface repeats". So DISREGARD that recommendation.
+The remaining failure is a stable model fixed point (all three members rewrite the test the
+same wrong way), not a budget shortfall. Neither rounds nor routing moves it; see
+RESULT-fleet-ab.txt "CORRECTION".

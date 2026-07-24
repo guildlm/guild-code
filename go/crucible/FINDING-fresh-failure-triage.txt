@@ -58,3 +58,14 @@ RESULT-fleet-ab.txt shows a gate (_fix_external_test_package) beating routing ou
 failure it covers — 1 round, 11s, no second model, on a failure that had defeated two models.
 When a single meaning exists, a gate is still strictly the better tool. The rule stands:
 gates for mechanical single-meaning repairs, routing for the semantic residue.
+
+PREDICTION OUTCOME (item 1) — RESOLVED, and my prediction was WRONG
+  I predicted the ListProjectsSorted failure was "likely REPAIRABLE by more rounds". The
+  16-round arm was run: 2/3 again, stopping on the SAME two tests (TestListSorted and
+  TestListProjectsSorted) with "error surface repeats". Nine extra rounds moved it zero.
+  So the failure is a stable FIXED POINT across rounds AND across all three fleet members —
+  the strongest form of "model-shaped" available: not one model's blind spot, but a shape all
+  of them re-derive identically. The gate decision above (NO GATE, the sort key must be
+  inferred) is unchanged, but the reason it matters is now sharper: nothing else this project
+  has fixes this class either, so if a single-meaning gate form is ever found, it would be
+  worth real effort — this is the residue after both rounds and routing are exhausted.
