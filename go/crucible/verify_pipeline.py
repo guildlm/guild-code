@@ -81,6 +81,12 @@ def main() -> int:
     ok, out = run([PY, "check_serving.py", "--self-test"])
     gate("serving control fires on a duplicated model (self-test)", ok, out.strip()[-300:])
 
+    # The A/B reporter turns two scores into the headline claim ("ROUTING WINS"). If that
+    # mapping silently inverts or flattens, a regression gets published as a win — the same
+    # class of error as a checker that no-ops, one level up. Gate the interpretation itself.
+    ok, out = run([PY, "fleet_ab.py", "--self-test"])
+    gate("fleet A/B verdict logic is correct (self-test)", ok, out.strip()[-300:])
+
     # A shared import is the only thing stopping a fourth copy of the fence bug: assert the
     # harnesses are literally running the same function object, not similar-looking code.
     # extract_code is not the only helper that decides "valid Go / truncated"; _repair_imports
