@@ -131,3 +131,37 @@ CONTROL EXPERIMENT — the 5c non-convergence is GONE, and routing was not what 
   second model, versus escalation that previously did not converge at all.
   Corollary for reading the 5c entry: its "rescue is target-bounded" conclusion was about a
   gap that no longer exists in that form.
+
+
+CORRECTION — "raise the ROUND budget" was WRONG. Tested, falsified, retracted.
+  The taskapipro entry above recommended a larger round budget before a larger fleet, on the
+  grounds that the 8-round fleet arm was still finding NEW error surfaces when it ran out.
+  That recommendation was testable, so it was tested: the identical fleet arm re-run with
+  --max-fix-rounds 16.
+      fleet, 8 rounds  -> 2/3, 27 escalations, 10382s
+      fleet, 16 rounds -> 2/3, 27 escalations, 15537s   (+4300s for NOTHING)
+  It ended on "error surface repeats — stopping extension rounds", failing on EXACTLY the same
+  two tests: TestListSorted and TestListProjectsSorted, both the sorted-vs-insertion-order
+  shape described in FINDING-fresh-failure-triage.txt.
+
+  WHY THE INFERENCE WAS WRONG: "still producing new error surfaces at the budget limit" looked
+  like progress being cut short. It was not. The loop was working through a QUEUE of unrelated
+  surfaces while the terminal one sat untouched underneath; clearing the queue just exposed
+  the same attractor. Progress-in-the-log is not progress-toward-green — the fix loop can be
+  busy and stuck at the same time. Extra rounds buy nothing once the remaining failure is one
+  the models re-derive identically every time.
+
+  WHAT THIS MAKES THE REMAINING FAILURE: a stable model FIXED POINT, not a budget shortfall.
+  The base, go-dev-final AND go-dev-14b all rewrite that test the same wrong way — they seed
+  {p2,p1}, compare element-wise against the seed, and never notice that a test whose own name
+  is *Sorted* is asserting insertion order. Neither more rounds nor a stronger member escapes
+  it. So for this class BOTH levers this project has (rounds, routing) are exhausted, and the
+  leverage has to come from somewhere else: the spec/prompt (say explicitly that the expected
+  slice must be sorted too), or a gate IF a single-meaning form can be found — which
+  FINDING-fresh-failure-triage.txt argues it currently cannot, since the sort key must be
+  inferred from another file.
+
+  METHOD NOTE: this cost 4.3 hours of GPU to produce a NEGATIVE result that retracts a
+  recommendation published earlier the same day. That is the cheap version of the mistake —
+  the expensive version is a recommendation that stays in the record because nobody spent the
+  4 hours. Same rule as everywhere else here: a claim nobody has seen fail is not yet a claim.
