@@ -197,6 +197,10 @@ FINAL TABLE (N=3, every spec improved, two converted to fully green)
 
 
 ABLATION — is the 14B member worth its cost? It is NECESSARY, not optional.
+  ⚠️ THIS SECTION'S CONCLUSION IS PARTLY SUPERSEDED — read the "COMPLEMENTARY ABLATION +
+  CORRECTION" section below before quoting it. Dropping only the 14B made it look sufficient;
+  dropping the 7B too shows the members are COMPLEMENTARY, not "14B does everything". The data
+  in this section is correct; the "7B added nothing" inference is the part that was corrected.
   Cost concentrates in the 14B member, so the natural question is whether a cheaper 2-member
   {base, go-dev-final} fleet captures the win. Re-ran the fleet arm with the 14B dropped, same
   protocol, on the two specs the 3-member fleet had turned green (base arms already recorded).
