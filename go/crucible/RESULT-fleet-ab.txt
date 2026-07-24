@@ -165,3 +165,32 @@ CORRECTION — "raise the ROUND budget" was WRONG. Tested, falsified, retracted.
   recommendation published earlier the same day. That is the cheap version of the mistake —
   the expensive version is a recommendation that stays in the record because nobody spent the
   4 hours. Same rule as everywhere else here: a claim nobody has seen fail is not yet a claim.
+
+
+THIRD DATA POINT — specs/workapi.yaml (20 files, 10 archived historical failures)
+                      score          stages                     escalations   wall
+    base-only         1/3  RED   build ok, VET FAILS               0          3879s
+    base-first fleet  3/3  GREEN build+vet+test ok                17          4778s
+  Independently re-verified: fleet `go vet` clean and every package `ok`; base `go vet` fails
+  with `undefined: enqueuedEvents`. Base's other terminal error was a cross-file interface
+  mismatch (http.Handler passed where mux.HandleFunc wants func(w,r)) — the same class the
+  fleet resolved on taskapipro.
+
+FINAL TABLE (N=3, every spec improved, two converted to fully green)
+    spec         files   base                  fleet          escalations   wall
+    shortener      7     2/3 RED               3/3 GREEN          12        +63%
+    taskapipro    20     0/3 (no build)        2/3 RED            27        3.1x
+    workapi       20     1/3 RED               3/3 GREEN          17        +23%
+
+  COST IS NOT ABOUT PROJECT SIZE. workapi and taskapipro are both 20-file projects, yet
+  routing cost +23% on one and 3.1x on the other. The driver is how long the HARD TAIL is:
+  workapi's escalated files converged, taskapipro's terminal test never did, so its fleet kept
+  paying for 14B calls on a file that was never going to go green. Routing's cost scales with
+  UNRESOLVED escalations, not with project size — which also means the expensive case is
+  exactly the case where it does not pay off. Budget it as "cheap when it works".
+
+  HONEST SCOPE: N=3 specs, one base model, one fleet composition, greedy decoding, one run per
+  arm (no repeats — the coder is deterministic, so a repeat reproduces the same run, but that
+  also means these are three samples of ONE trajectory each, not a distribution). The claim
+  supported is "on these three historically-failing specs, base-first routing improved the
+  outcome every time and converted two to green", not a general win rate.
