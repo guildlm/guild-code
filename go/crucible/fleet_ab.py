@@ -32,6 +32,29 @@ HERE = Path(__file__).resolve().parent
 BUILDER = HERE.parent.parent.parent / "builder"
 
 
+# A run whose model server died mid-way still leaves a partially-built project on disk, and
+# score_backend will happily score it. That score is NOT a result — it measures how far the
+# build got before the infrastructure broke. Observed for real: an MLX server was killed by
+# the macOS GPU watchdog (kIOGPUCommandBufferCallbackErrorImpactingInteractivity) and the
+# arm recorded "score=1/3" as if it were data. Detect it and refuse to score.
+_INFRA_FAILURE_MARKERS = (
+    "APIConnectionError",
+    "Connection error",
+    "Connection refused",
+    "ReadTimeout",
+    "RemoteProtocolError",
+)
+
+
+def infra_failed(log_text: str) -> str | None:
+    """The marker that says this arm died of infrastructure, not of the model's code.
+    Returns the marker found, or None if the run failed (or passed) on its own merits."""
+    for marker in _INFRA_FAILURE_MARKERS:
+        if marker in log_text:
+            return marker
+    return None
+
+
 def verdict(base: int | None, fleet: int | None) -> str:
     """The pure core: what a (base, fleet) score pair means. Separated so --self-test can
     exercise the real interpretation without running a model (the crucible convention)."""
@@ -67,12 +90,16 @@ def run_arm(spec: Path, out: Path, base_url: str, model: str,
     with open(log, "w") as fh:
         rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT).returncode
     text = log.read_text(errors="replace")
+    broke = infra_failed(text)
     return {
         "rc": rc,
         "secs": round(time.time() - started),
         "escalations": text.count("escalating"),
         "fix_rounds": text.count("fix round"),
-        "score": score_of(out),
+        # Refuse to attach a score to a run the infrastructure killed — a partial build
+        # scores as if the model had produced it, which is a wrong number, not a missing one.
+        "infra_failure": broke,
+        "score": {} if broke else score_of(out),
     }
 
 
@@ -102,6 +129,12 @@ def self_test() -> int:
         failures.append("did not call equal scores a tie")
     if verdict(None, 3) != "INCOMPLETE":
         failures.append("scored a missing arm instead of reporting INCOMPLETE")
+    # The infra guard: a crashed server must never be scored as a model result.
+    crashed = "[guildlm-build] generate x.go\nAPIConnectionError: Connection error.\n"
+    if infra_failed(crashed) != "APIConnectionError":
+        failures.append("did not flag a run killed by a dead model server")
+    if infra_failed("compile/test FAILED, fix round 3/8\nundefined: Reverse\n") is not None:
+        failures.append("flagged an ordinary model failure as an infrastructure failure")
     for f in failures:
         print(f"FAIL  {f}")
     print("OK — fleet_ab verdict logic is correct on all four outcomes"
