@@ -68,3 +68,45 @@ MEASUREMENT INTEGRITY — READ THIS BEFORE REPRODUCING
   byte-identical to mlx_lm.load(..., adapter_path=...) ground truth. Run
   `check_serving.py <ports>` before any served A/B; had this gone unnoticed it would have
   reported "routing does nothing" — the expected result, for a completely spurious reason.
+
+
+SECOND DATA POINT — specs/taskapipro.yaml (20 files, 16 archived historical failures)
+                      score          stages                        escalations   wall
+    base-only         0/3  RED   does not even BUILD                   0         3389s
+    base-first fleet  2/3  RED   build ok, vet ok, one test fails     27        10382s
+  Independently re-verified: `go build ./...` exit 0 (fleet) vs a hard compile error (base).
+  Base died on internal/service/service.go:41 `return s.store.CreateTask(ctx, t)` — the store
+  returns `error`, the caller wants `(models.Task, error)` — and never moved off that surface
+  in 11 rounds ("error surface repeats — stopping"). The fleet RESOLVED that mismatch (kept
+  the store's signature, rewrote the caller), then kept advancing through NEW error surfaces
+  to extension round 10. Remaining failure is semantic: ListProjects returns the wrong order.
+
+  ==> Routing improved the score on BOTH specs (2/3 -> 3/3, and 0/3 -> 2/3). One converted to
+  fully green. N=2, both positive, one decisive.
+
+A PREDICTION I GOT WRONG (recorded because the miss is the informative part)
+  Before this arm finished I predicted it would likely FAIL to build or oscillate, reasoning:
+  shortener's blocker was INTRA-file (one badly written file — a better model fixes it in
+  isolation), whereas taskapipro's was a CROSS-FILE CONTRACT MISMATCH, and FleetCoder
+  escalates per FILE while the fix loop repairs one file at a time against the error text. A
+  stronger model still sees only that file, so it could equally well "fix" either side and
+  flip back next round.
+  WHAT ACTUALLY HAPPENED: the fleet picked a side consistently and advanced two whole stages
+  (no build -> build+vet). So routing helps on cross-file contract errors MORE than the
+  per-file mechanism suggests. The mechanism I reasoned about was right; the conclusion was
+  wrong, because a one-file repair is enough when the model chooses the direction that matches
+  the rest of the codebase — and that choice is exactly a model-quality question, which is
+  what escalation changes. Base failed it 11 times; escalated members got it.
+  LESSON: "the loop reasons one file at a time" bounds the MECHANISM, not the OUTCOME.
+  Per-file escalation can still resolve a cross-file disagreement, because a contract has a
+  right answer visible from either side.
+
+THE COST, STATED PLAINLY
+  shortener  +63% wall clock (719s -> 1174s)
+  taskapipro 3.1x wall clock (3389s -> 10382s, i.e. 56 min -> 2h53m), 27 escalations
+  Routing is NOT cheap on hard specs. It is near-free only while the base carries most files;
+  once the tail is long, every stuck file drags in a slower member and the 14B dominates. The
+  honest trade: on shortener it bought a green build for +8 minutes; on taskapipro it bought
+  two stages of progress for +2 hours and still did not finish. Budget accordingly — and note
+  the fleet arm was still finding NEW error surfaces when it ran out of rounds, so a larger
+  ROUND budget (not a bigger fleet) is the first thing to try on specs of this size.
