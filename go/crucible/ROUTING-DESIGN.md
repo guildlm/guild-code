@@ -223,3 +223,23 @@ measured. Cost: +63% wall clock. Granularity: when the fix loop widens to packag
 repair, escalation goes fleet-wide rather than staying targeted — an open improvement.
 
 Full write-up, caveats, and the discarded first attempt: RESULT-fleet-ab.txt.
+
+### 5d (cont.) — second data point, and the cost
+
+    specs/taskapipro.yaml (20 files)   score                      escalations   wall
+      base-only                        0/3  does not even BUILD       0         3389s
+      base-first fleet                 2/3  build ok, vet ok          27       10382s
+
+Base died on a CROSS-FILE contract mismatch (`store.CreateTask` returns `error`, the service
+caller wants `(models.Task, error)`) and never moved off that surface in 11 rounds. The fleet
+resolved it — kept the store's signature, rewrote the caller — then advanced through new error
+surfaces to extension round 10, ending on a semantic bug (ListProjects sort order).
+
+So routing improved the score on BOTH specs (2/3 -> 3/3 green, 0/3 -> 2/3). It also cost
++63% and 3.1x wall clock respectively: near-free while the base carries most files, expensive
+once the tail is long. On specs this size the fleet was still finding NEW error surfaces when
+the round budget ran out — so raise the ROUND budget before enlarging the fleet.
+
+This also corrected a prediction: per-file escalation DOES resolve cross-file contract
+mismatches, because a contract has a right answer visible from either side, and picking that
+side is a model-quality question. See RESULT-fleet-ab.txt.
