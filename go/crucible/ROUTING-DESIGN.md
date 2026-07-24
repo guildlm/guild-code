@@ -252,3 +252,21 @@ tests, +4300s — and stopped on "error surface repeats". So DISREGARD that reco
 The remaining failure is a stable model fixed point (all three members rewrite the test the
 same wrong way), not a budget shortfall. Neither rounds nor routing moves it; see
 RESULT-fleet-ab.txt "CORRECTION".
+
+### 5d (composition ablation) — the full 2x2, and a correction
+
+Full composition matrix, every cell toolchain-verified:
+
+                  shortener   workapi
+  base              2/3         1/3
+  {base, 7B-spec}   1/3         1/3
+  {base, 14b}       1/3         2/3
+  {base, 7B, 14b}   3/3         3/3
+
+The full 3-member fleet is the ONLY config that greened both specs; no 2-member subset did.
+On the clean spec (workapi) the members are complementary — dropping either costs a point.
+CORRECTION: an earlier note here said the 7B specialist added nothing; that was from one
+ablation direction and is wrong — {base,14b}=2/3 < {base,7B,14b}=3/3, so the 7B contributes.
+Shortener is confounded (base emits a degenerate test generation; both 2-member fleets regress
+below base on escalation timing), so weight workapi. D1 "keep all three" stands, now for a
+project-scale reason. Full detail + costs: RESULT-fleet-ab.txt.
