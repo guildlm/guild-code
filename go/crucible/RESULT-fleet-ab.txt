@@ -110,3 +110,24 @@ THE COST, STATED PLAINLY
   two stages of progress for +2 hours and still did not finish. Budget accordingly — and note
   the fleet arm was still finding NEW error surfaces when it ran out of rounds, so a larger
   ROUND budget (not a bigger fleet) is the first thing to try on specs of this size.
+
+
+CONTROL EXPERIMENT — the 5c non-convergence is GONE, and routing was not what fixed it
+  5c recorded a live escalation demo on a deliberately weak fleet {1.5B base, 7B} that FIRED
+  but never converged: the 1.5B wrote `package stringkit_test` with bare `Reverse(...)` calls,
+  and NEITHER model repaired the structural mismatch. `_fix_external_test_package` (builder
+  4bdbc6c) shipped afterwards as a deterministic gate for exactly that shape.
+  RE-RUN NOW, same weak base, both arms:
+      weak base alone   -> GREEN, "deterministic fix in stringkit_test.go",
+                           converged after fix round 1, 0 escalations, 11s
+      weak base + fleet -> GREEN, identical path, 0 escalations, 8s
+  Verified independently: `go test ./...` ok; the file's clause is now `package stringkit`.
+
+  ==> The failure that beat TWO models is now fixed by a gate in one round, and the fleet is
+  never consulted. This is the ordering the project should keep: DETERMINISTIC GATES FIRST,
+  routing for the residue. Routing's measured wins above (shortener, taskapipro) are wins on
+  what the gate chain CANNOT reach — semantic and contract errors where a gate would have to
+  guess. Where a single-meaning repair exists, a gate beats routing outright: 11s and no
+  second model, versus escalation that previously did not converge at all.
+  Corollary for reading the 5c entry: its "rescue is target-bounded" conclusion was about a
+  gap that no longer exists in that form.
