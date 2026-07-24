@@ -1,0 +1,60 @@
+FINDING — triaging the FRESH failures today's A/B produced (2026-07-24, model-free)
+==============================================================================
+
+WHY THIS FILE: yesterday's gate-mining ended on a negative result — re-mining the archived
+_fail-* backlog yields no new clean gate, because the chain has grown to cover it. The
+meta-insight was that NEW gate shapes come from NEW failing runs. Today's scaled A/B produced
+exactly that: fresh, never-before-seen failures on shortener and taskapipro. This triages them
+and records which are gate-able and which belong to the model. No model calls needed.
+
+1. taskapipro, fleet arm's LAST remaining failure — a SELF-CONTRADICTING TEST
+   internal/store/memory_test.go TestListProjectsSorted:
+       projects := []models.Project{{ID:"p2",Name:"z"}, {ID:"p1",Name:"a"}}   // creation order
+       ... create both ...
+       got, _ := store.ListProjects(ctx)
+       for i := range got { if got[i].ID != projects[i].ID { t.Errorf(...) } }
+   The IMPLEMENTATION IS CORRECT: ListProjects does sort.Slice by ID ascending, which is what
+   the spec demands ("list id-sorted"). The TEST is wrong — it compares the sorted result
+   element-wise against the UNSORTED seed slice. A test whose own name says "Sorted" asserts
+   creation order. Failure text: `got {p1 a}, want {p2 z}` and `got {p2 z}, want {p1 a}` —
+   the tell-tale symmetric swap of a sorted-vs-insertion-order comparison.
+
+   GATE DECISION: NO GATE. The repair is "sort the EXPECTATION slice by the same key the
+   implementation sorts by", which requires inferring the key from another file. That is an
+   inference, not a single meaning — the same line the arity/value-guess tail was refused on.
+   A wrong key still compiles and fails an assertion, i.e. it would masquerade as a model
+   logic bug and MISLEAD the fix loop. This belongs to the model.
+
+   PREDICTION (falsifiable, for the running 16-round arm): this failure is likely REPAIRABLE
+   by more rounds rather than by a gate or a bigger fleet. The 8-round arm ended while still
+   producing NEW error surfaces (extension round 10), and the fix loop targets by error
+   location — which points squarely at the test file. If the 16-round arm goes green, the
+   published "raise the ROUND budget before enlarging the fleet" recommendation is supported;
+   if it stalls on this same test, the recommendation is wrong and the failure is model-shaped
+   in a way rounds do not fix.
+
+2. taskapipro, BASE arm's terminal failure — CROSS-FILE CONTRACT MISMATCH
+   internal/service/service.go:41 `return s.store.CreateTask(ctx, t)` where the store returns
+   `error` and the caller wants `(models.Task, error)`. Base never moved off it in 11 rounds.
+   GATE DECISION: NO GATE. Both sides are locally valid Go; "which side is wrong" is a design
+   choice, not a mechanical repair. Confirmed empirically that this is model-shaped and
+   model-fixable: the fleet resolved it by rewriting the caller to match the store.
+
+3. shortener, BASE arm's terminal failure — SEMANTIC TEST ERROR
+   The test JSON-decoded the body of a 301 redirect (`GET /r/{code}`) and read .Hits from it;
+   the endpoint has no body, so Decode returns EOF. The spec states the correct shape
+   explicitly. GATE DECISION: NO GATE — a gate would have to know that /r/ is a redirect and
+   that hits come from /stats/, i.e. read the spec's semantics. The fleet fixed it.
+
+SUMMARY: three fresh, genuinely distinct failure shapes, and NONE of them yields a clean
+single-meaning gate. All three are semantic or design-level. That is a second, independent
+confirmation of the gate campaign's stopping condition — not because the backlog was already
+covered (yesterday's argument), but because the failures that REMAIN at this maturity level
+are the kind gates must not touch. The deterministic chain has taken the mechanical tail; what
+is left is model work, which is precisely why routing showed measurable value today.
+
+COUNTERPOINT, so this is not read as "gates are done": the control experiment in
+RESULT-fleet-ab.txt shows a gate (_fix_external_test_package) beating routing outright on the
+failure it covers — 1 round, 11s, no second model, on a failure that had defeated two models.
+When a single meaning exists, a gate is still strictly the better tool. The rule stands:
+gates for mechanical single-meaning repairs, routing for the semantic residue.
