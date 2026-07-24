@@ -102,3 +102,17 @@ THE THIRD LEVER (spec/prompt) PROBED CHEAPLY — UNRELIABLE, not a fix
   "unparseable"), and worse, its control arm seeded in ALREADY-ASCENDING order, which masks
   the bug entirely. A control that cannot fail cannot isolate anything. Forcing the reverse
   seed order is what made the comparison real.
+
+4. shortener's degenerate GENERATION (base emits a repeated-digit string to max_tokens) —
+   NO BUILDER FIX NEEDED, checked by reading the code, not assumed.
+   This looked like a candidate for a new deterministic improvement (the session's rule: new
+   failures yield new gates). Reading src/builder.py _sample_clean shows it is ALREADY handled:
+   the degenerate draw fails extract/parse, why_dirty() returns "does not parse", the draw is
+   rejected, and best-of-N resamples it (candidates=3 avoided it entirely — 9 parse-rejects ->
+   1). At candidates=1 there is no resample, but that is the documented best-of-N contract, not
+   a bug; the fix is "raise --candidates", a config choice. The shortener regression was the
+   INTERACTION of candidates=1 with escalation timing (the file is handed off before base
+   finishes), both existing known behaviors — not a generation defect. So there is no clean,
+   single-meaning builder change to extract here. Recorded so the next session does not
+   re-investigate it: the generation machinery is correct; do not add a redundant degeneracy
+   gate on top of the parse check.
