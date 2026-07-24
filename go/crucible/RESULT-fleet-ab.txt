@@ -194,3 +194,45 @@ FINAL TABLE (N=3, every spec improved, two converted to fully green)
   also means these are three samples of ONE trajectory each, not a distribution). The claim
   supported is "on these three historically-failing specs, base-first routing improved the
   outcome every time and converted two to green", not a general win rate.
+
+
+ABLATION — is the 14B member worth its cost? It is NECESSARY, not optional.
+  Cost concentrates in the 14B member, so the natural question is whether a cheaper 2-member
+  {base, go-dev-final} fleet captures the win. Re-ran the fleet arm with the 14B dropped, same
+  protocol, on the two specs the 3-member fleet had turned green (base arms already recorded).
+
+    spec        base    {base, 7B-spec}         {base, 7B-spec, 14B}
+    shortener   2/3     1/3  REGRESSED          3/3  GREEN
+    workapi     1/3     1/3  no gain            3/3  GREEN
+  Both 2-member runs completed cleanly (0 infra failures) and were independently re-verified.
+
+  MECHANISM, per spec (different failure, same conclusion):
+  - shortener: go-dev-final, handed the escalated shortener_test.go, produced a DEGENERATE
+    generation — a repeated-digit string run to max_tokens, leaving an unterminated string
+    literal. The builder correctly REJECTS it every round ("does not parse"), but the
+    specialist re-emits the same garbage deterministically and there is no third member to
+    escalate to, so the file stays broken: 1/3, WORSE than base-only (2/3, which had reached a
+    parsing test file). In the 3-member run this same file escalated TWICE (base->final->14b,
+    log lines 40 and 86) and the 14b cleaned up the specialist's mess -> green.
+  - workapi: go-dev-final ended on `undefined: enqueuedEvents` in service_test.go — the EXACT
+    error base-only ended on. The 7B specialist could not fix what base could not; only the
+    14b (in the 3-member run) resolved it.
+
+  ==> The 7B specialist member (go-dev-final) contributed ZERO net project-level benefit in
+  this ablation, and on shortener actively HARMED (a fleet that scores below base-only). Every
+  green in the scaled result traces to the 14b member. So the 14b is not "worth its cost" —
+  it is the member doing the work; the cheaper 2-member fleet is the one that is not worth it.
+
+  IMPORTANT REFRAMING OF go_dev_bench's D1: ensemble_ceiling.py credited go-dev-final with
+  rune/string tasks on the UNIT bench, which is why D1 kept it in the 3-member fleet. At
+  PROJECT scale that credit did not materialize — the 7B specialist either degenerated or
+  matched base, and the 14b carried the wins. The unit-bench ceiling and the project-scale
+  contribution are different things, and the 7B specialist's unit-bench niche did not transfer.
+
+  STILL OPEN (the complementary ablation): whether go-dev-final adds anything ON TOP of
+  {base, 14b}, i.e. does the 7B specialist earn its slot at all, or is {base, go-dev-14b} the
+  right 2-member fleet? This ablation dropped the 14b; the complementary one drops the 7B
+  specialist and needs the 14b server resident. Given the cost finding (expense is the 14b)
+  and this result (the 7B specialist added nothing here), {base, 14b} is the composition to
+  test next. N=2 specs; a degenerate generation is a per-prompt event, so treat the shortener
+  regression as "can happen", not "will happen".
