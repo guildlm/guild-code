@@ -69,3 +69,36 @@ PREDICTION OUTCOME (item 1) — RESOLVED, and my prediction was WRONG
   inferred) is unchanged, but the reason it matters is now sharper: nothing else this project
   has fixes this class either, so if a single-meaning gate form is ever found, it would be
   worth real effort — this is the residue after both rounds and routing are exhausted.
+
+THE THIRD LEVER (spec/prompt) PROBED CHEAPLY — UNRELIABLE, not a fix
+  With rounds and routing both exhausted, the remaining lever was the spec/prompt. Testing
+  that with a full taskapipro build costs ~3h; instead a 2-minute single-prompt A/B asked the
+  7B base for just TestListProjectsSorted, forcing the REAL conditions (seed p2 then p1, i.e.
+  reverse id order), with and without an explicit instruction that the expected slice must
+  itself be sorted.
+    ARM A (no instruction)  -> reproduced the bug EXACTLY: it even checks
+        sort.SliceIsSorted(listed...) correctly, then loops comparing the sorted result
+        element-wise against the CREATION-order seed slice.
+    ARM B (explicit instruction) -> ALSO WRONG, in a new way: it sorted the RESULT (already
+        sorted) instead of the expectation, then reflect.DeepEqual'd it against {p2, p1}.
+  An earlier, less-forced phrasing of the same instruction DID produce the correct code
+  (it sorted the expectation). So the prompt lever is UNRELIABLE here, not useless: the model
+  has a strong prior to "sort something" and attaches it to the wrong operand under pressure.
+
+  WHY THIS MATTERS FOR THE FIXED POINT: the failure is not "the model does not know the list
+  is sorted" — Arm A explicitly ASSERTS sortedness one line before contradicting itself. It is
+  a local inconsistency the model cannot see, which is exactly why re-running it (more rounds)
+  and re-asking a stronger model (routing) both reproduce it.
+
+  A NARROW GATE DOES BECOME VISIBLE, and is still declined: in Arm B's shape the comparator
+  IS present in the test file (`sort.Slice(projects, func(i,j) { ID < ID })`), so "sort the
+  literal expectation by the same comparator" would need no cross-file inference. But the REAL
+  taskapipro failure has no sort in the test at all — the key lives in memory.go — so the gate
+  would cover the probe's shape and miss the actual one. Declined: a gate that fires only on
+  the variant you synthesised is worse than none.
+
+  METHOD NOTE — the probe's FIRST version was broken and reading the output caught it: its
+  verdict function only matched quoted ID literals (so it called an integer-ID answer
+  "unparseable"), and worse, its control arm seeded in ALREADY-ASCENDING order, which masks
+  the bug entirely. A control that cannot fail cannot isolate anything. Forcing the reverse
+  seed order is what made the comparison real.
