@@ -99,10 +99,13 @@ D4. WHICH FILES ARE ESCALATION-ELIGIBLE. **SETTLED 2026-07-25 — every fix targ
     whichever member already owns them. It was implemented, measured and reverted
     (builder 3095b7f; write-up in builder logs/FINDING-escalation-granularity.txt):
 
-      - shortener fleet arm re-run against its own recorded control (5d):
-            widened eligible   12 escalations   1174s   3/3 GREEN
-            blamed-only         2 escalations   1080s   2/3 RED
-        Cheaper on both axes and worse where it counts.
+      - BOTH green fleet arms in 5d, each re-run against its own recorded control:
+            shortener  widened 12 esc 1174s 3/3 GREEN | blamed-only 2 esc 1080s 2/3 RED
+            workapi    widened 17 esc 4778s 3/3 GREEN | blamed-only 5 esc 4654s 2/3 RED
+        Cheaper on both axes and worse where it counts, twice. workapi shows the
+        mechanism directly: all five escalations were _test.go files, while the handler
+        that actually fails (200 where the spec requires 201) was repaired seven times
+        and escalated zero times.
       - across 32 archived failing artifacts: where implementation files are being
         repaired and NOT ONE is blamed — compile failures 0/13, test failures 18/19.
 

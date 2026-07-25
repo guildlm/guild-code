@@ -58,15 +58,22 @@ COSTS AND LIMITS (stated, not buried)
     the widened set accumulates its own stuck-counter, so escalation goes fleet-wide (12
     escalations here) rather than staying targeted. Cheaper, more surgical escalation is an
     open improvement, not a validated one.
-    ⚠️ TESTED 2026-07-25 AND REFUTED — this caveat was wrong, and the breadth it calls
-    waste is what earns the green. Builder was changed to strike only files the toolchain
-    NAMES, and this exact arm re-run against this recorded control:
-        this control (widened eligible)   12 escalations   1174s   3/3 GREEN
-        blamed-only                        2 escalations   1080s   2/3 RED
-    Cheaper on both axes and worse where it counts. The blamed test file escalated twice
-    and it WORKED — the recorded blocker (a test decoding the empty body of a 301) is gone
-    and the test asks /stats/ correctly; what fails is the implementation's hit counter.
-    And go NEVER names an implementation file for a runtime failure: `--- FAIL` names the
+    ⚠️ TESTED 2026-07-25 AND REFUTED ON BOTH SPECS — this caveat was wrong, and the
+    breadth it calls waste is what earns the green. Builder was changed to strike only
+    files the toolchain NAMES, and both green arms recorded here were re-run against
+    their own controls:
+        shortener  widened 12 esc 1174s 3/3 GREEN | blamed-only 2 esc 1080s 2/3 RED
+        workapi    widened 17 esc 4778s 3/3 GREEN | blamed-only 5 esc 4654s 2/3 RED
+    Cheaper on both axes and worse where it counts, twice. On workapi the mechanism is
+    IN THE LOG rather than inferred: all five escalations were _test.go files, while
+    internal/api/tasks.go — the handler returning 200 where the spec requires 201, which
+    is exactly what the surviving assertions say — was repaired SEVEN times and escalated
+    ZERO times.
+    On shortener the same shape, one step less direct: the blamed test file escalated
+    twice and it WORKED — the blocker recorded above (a test decoding the empty body of a
+    301) is gone and the test asks /stats/ correctly; what fails instead is the
+    implementation's hit counter, which nothing blamed.
+    Because go NEVER names an implementation file for a runtime failure: `--- FAIL` names the
     test, so the impl enters the fix targets only by widening and a blamed-only rule can
     never hand it to a stronger member, however many rounds it spends.
     Measured across 32 archived failing artifacts, not just this spec: in 18 of the 19
