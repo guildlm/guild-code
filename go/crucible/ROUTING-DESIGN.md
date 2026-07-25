@@ -8,8 +8,9 @@
 > rationale that shaped it.
 
 This is the concrete next build the measurement work points to. It is written to be
-decision-forcing: the empirical case is settled below; what remains are three choices
-(§4) that only the project owner should make, after which implementation is mechanical.
+decision-forcing: the empirical case is settled below; what remains are the choices in
+§4 that only the project owner should make, after which implementation is mechanical.
+(§4 grew a D4 that the owner does NOT get to make — it was answered by measurement.)
 
 ## 1. The evidence that motivates it (all in RESULT-go-dev-bench-v2.txt, offline-reproducible)
 
@@ -73,7 +74,7 @@ tests exercise the rescued behaviour: on go_dev_bench the hidden tests fully dis
 (so the ceiling is the full +4); on a real project it is however much the project's tests
 cover. So the expected gain is "real but project-dependent", not the flat +4/48.
 
-## 4. THE THREE DECISIONS (owner's call — implementation is mechanical after)
+## 4. THE DECISIONS (owner's call — implementation is mechanical after)
 
 D1. FLEET COMPOSITION. VALIDATED (ensemble_ceiling.py on the committed generations):
     the 3-member fleet {base-7B, go-dev-final, go-dev-14b} reaches 48/48 — IDENTICAL to
@@ -91,6 +92,31 @@ D2. SERVING. 7B-4bit (~4GB) and 14B-4bit (~8GB) do not comfortably co-reside for
 D3. COST CEILING. Base-first means N model calls only on gate-failing tasks. Set a cap:
     max fleet members tried per task, and whether to run them in parallel (latency) or
     sequentially (memory). -> pick the max-calls budget.
+
+D4. WHICH FILES ARE ESCALATION-ELIGIBLE. **SETTLED 2026-07-25 — every fix target is, and
+    this is not a knob to turn down.** The obvious cost saving is to escalate only files
+    the toolchain NAMES, leaving the ones root-cause widening pulled in to be repaired by
+    whichever member already owns them. It was implemented, measured and reverted
+    (builder 3095b7f; write-up in builder logs/FINDING-escalation-granularity.txt):
+
+      - shortener fleet arm re-run against its own recorded control (5d):
+            widened eligible   12 escalations   1174s   3/3 GREEN
+            blamed-only         2 escalations   1080s   2/3 RED
+        Cheaper on both axes and worse where it counts.
+      - across 32 archived failing artifacts: where implementation files are being
+        repaired and NOT ONE is blamed — compile failures 0/13, test failures 18/19.
+
+    THE REASON, which is a property of the Go toolchain and will not change: a compiler
+    error names an implementation file; a failing assertion names the TEST. So an
+    implementation defect that only a test can reveal enters the fix targets ONLY through
+    widening, and escalating only blamed files makes it permanently unreachable by a
+    stronger member. The breadth that looks like waste in the 5d cost table is the sole
+    route to a whole class of defect.
+
+    Corollary for anyone tuning cost later: escalation breadth is the wrong place to cut.
+    The 5d cost analysis already points at the right one — cost scales with UNRESOLVED
+    escalations, so the lever is stopping early on files that are not converging (D3), not
+    narrowing which files may escalate at all.
 
 ## 5. How to validate the build (reuse what exists)
 
