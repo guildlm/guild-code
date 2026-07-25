@@ -58,6 +58,23 @@ COSTS AND LIMITS (stated, not buried)
     the widened set accumulates its own stuck-counter, so escalation goes fleet-wide (12
     escalations here) rather than staying targeted. Cheaper, more surgical escalation is an
     open improvement, not a validated one.
+    ⚠️ TESTED 2026-07-25 AND REFUTED — this caveat was wrong, and the breadth it calls
+    waste is what earns the green. Builder was changed to strike only files the toolchain
+    NAMES, and this exact arm re-run against this recorded control:
+        this control (widened eligible)   12 escalations   1174s   3/3 GREEN
+        blamed-only                        2 escalations   1080s   2/3 RED
+    Cheaper on both axes and worse where it counts. The blamed test file escalated twice
+    and it WORKED — the recorded blocker (a test decoding the empty body of a 301) is gone
+    and the test asks /stats/ correctly; what fails is the implementation's hit counter.
+    And go NEVER names an implementation file for a runtime failure: `--- FAIL` names the
+    test, so the impl enters the fix targets only by widening and a blamed-only rule can
+    never hand it to a stronger member, however many rounds it spends.
+    Measured across 32 archived failing artifacts, not just this spec: in 18 of the 19
+    whose tests fail at runtime, implementation files are being repaired and NOT ONE is
+    blamed; for compile failures it is 0 of 13. A compiler error names an implementation
+    file, a failing assertion cannot. Reverted (builder 3095b7f), and the behaviour now
+    has the test it never had — which is why removing it had looked safe.
+    Full write-up: builder logs/FINDING-escalation-granularity.txt.
 
 MEASUREMENT INTEGRITY — READ THIS BEFORE REPRODUCING
   The first attempt at this A/B was INVALID and was thrown away: mlx_lm.server silently
