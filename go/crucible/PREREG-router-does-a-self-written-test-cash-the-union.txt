@@ -1,0 +1,45 @@
+PREREG (2026-09-19, before any self-test is generated) — does a self-written test cash the union?
+=================================================================================================
+QUESTION. Two untuned bases disagree on 13 of 48 go_dev_bench v2 tasks; their union is 47/48 raw
+(Addendum B). A router that could pick the right one per task would score 47. Finding 5 (07-23) said
+a compile gate cannot select because on most disagreements both compile, and that selection needs a
+TEST signal. Tonight: the go-test role writes a test from the SPEC ALONE (never sees a candidate),
+each candidate runs against it, and the gate picks. Is the realizable router above the best single?
+
+FIXED INPUTS (as drawn, no regeneration):
+  preferred  30B  = data/go_dev_bench_qwen3coder30b_served_t0.jsonl   (Ollama Q4_K_M, temp 0)  44/48
+  alternate  7B   = data/go_dev_bench_base7b_greedy.jsonl             (MLX 4-bit, greedy)       39/48
+  hidden verdicts = the saved `verdict` field of each row (the real bench tests).
+  self-test writer, primary arm:   qwen3-coder:30b   served, temp 0, seed 0, SYSTEM from mlx_test_bench
+  self-test writer, secondary arm: qwen2.5-coder:7b  served, temp 0, seed 0, same prompt
+  self-test repair: goimports on the generated test file (deterministic, the same repair arm the test
+  bench already has; a missing "strings" import must not count as a wrong test).
+
+ARITHMETIC (no model needed, from saved verdicts — computed BEFORE the draw, so not a prediction):
+  oracle union            = 47   (only errors_wrap fails both raw)
+  best single (30B)       = 44
+  compile gate [30B,7B]   = 45   (30B fails to build on errors_wrap + min_heap; 7B passes min_heap raw)
+  -> the router's whole question is the 2 tasks where 30B BUILDS BUT IS WRONG (lru_touch,
+     rotate_matrix) versus the 9 tasks only 30B solves, where a wrong self-test can route AWAY from
+     the right answer.
+
+ARMS (all reported, none added after the draw):
+  STRICT  (PRIMARY)  start on 30B; switch to 7B only if the self-test FAILS on 30B AND PASSES on 7B
+                     (the test must discriminate; a broken test that fails both leaves us on 30B).
+  LOOSE              first candidate in [30B, 7B] that passes the self-test; none -> stay on 30B.
+  LOOSE-7BFB         as LOOSE but none -> fall back to 7B.
+  VALID-ONLY         STRICT, but the self-test is used only if it passes on the task's REFERENCE
+                     solution (oracle-assisted; an UPPER BOUND on what a better test writer buys).
+  Also reported: self-test validity on the reference (n/48), how many self-tests compile, per-task
+  route changes vs best-single and whether each was right or wrong.
+
+PREDICTIONS (primary arm, 30B test writer):
+  P(self-test valid on reference >= 36/48)  = 0.60
+  P(STRICT >= 46)                           = 0.40   (needs >=1 of {lru_touch, rotate_matrix} caught, 0 wrong switches)
+  P(STRICT == 45)                           = 0.40
+  P(STRICT <  45)                           = 0.20   (a broken test that passes 7B and fails 30B on a 30B-only win)
+  P(LOOSE  <  STRICT)                       = 0.55   (LOOSE switches on broken tests; STRICT does not)
+  P(VALID-ONLY >= 46)                       = 0.50
+  P(7B-writer STRICT < 30B-writer STRICT)   = 0.55
+SILENT BRANCH: if STRICT == 45 with 0 switches, the self-test did not discriminate on the two tasks
+  that matter; that is a fact about the test writer on those two specs, not "routing is dead".
