@@ -17,6 +17,7 @@
 #   go-dev-mined (SFT)       23      24         genuinely worst (mining data, real rambling)
 #   base 14B                 36      43         scale barely moves the bench
 #   go-dev-14b (SFT)         27      40         14B specialist also <= base (-3)
+#   Qwen3-Coder-30B-A3B 4bit 36      38         2026 MoE base: -6 vs 7B base, but complementary (union 46/48) — ADDENDUM 2026-09-19 at end
 #
 # FINDINGS:
 #  1. Every specialist <= base at BOTH 7B and 14B; the deficit is almost entirely
@@ -654,3 +655,55 @@ dapt300, dapt600-ck*, dapt-replay); the historical "~15" was old-harness and may
 different checkpoint, so the doubling is directional, not a same-artefact delta. Greedy,
 n=6 probe. Generations committed (data/go_dev_bench_dapt600_greedy.jsonl) — re-scores
 offline with rescore_dev_bench.py, no GPU.
+
+################################################################################
+# ADDENDUM (2026-09-19) — a 2026 base did NOT beat the 2025 base on this bench.
+################################################################################
+# Qwen3-Coder-30B-A3B-Instruct (mlx-community 4-bit, MoE, 3.3B active), the model
+# the 2026 local-coding roundups rank first. Same fixed harness (mlx_bench.py, direct
+# MLX load, <|im_end|> EOS), greedy, N=48, generations committed
+# (data/go_dev_bench_qwen3coder30b_greedy.jsonl) and re-scored offline with
+# rescore_dev_bench.py --repair imports. Base 7B re-scored through the same rescorer
+# in the same session as the control (44/48, unchanged).
+#
+#   model                                    raw   +goimports   compiles   pass|compiles
+#   base Qwen2.5-Coder-7B-Instruct-4bit       39      44         47/48       44/47
+#   base Qwen2.5-Coder-14B-Instruct-4bit      36      43
+#   Qwen3-Coder-30B-A3B-Instruct-4bit         36      38         43/48       38/43   <-- NEW
+#
+# FINDINGS:
+#  1. NOT a drop-in replacement for the 7B base: -3 raw, -6 after goimports, 4 fewer
+#     compiles. Rank on agentic benchmarks does not transfer to single-shot stdlib
+#     Go. Same lesson the specialists taught: measure on THIS bench before swapping.
+#  2. COMPLEMENTARY, not dominated. Uniquely solves 7 tasks the 7B fails —
+#     camel_to_snake, ctx_cancel_worker, errors_wrap, max_generic, reverse_runes,
+#     rune_at, status_stringer: exactly the 7B's rune/string + errors weakness
+#     cluster — and fails 10 the 7B solves (balanced, is_palindrome, keys_sorted,
+#     merge_intervals, min_heap, ring_buffer, rle_decode, roman, safe_counter,
+#     sort_by_len). Union 7B|30B-A3B = 46/48 raw; only title_case and chunk_reader
+#     fail in both. ctx_cancel_worker was previously rescued ONLY by the 14B
+#     specialist; here an untuned base rescues it. Finding 5 (ensemble ceiling)
+#     restated by a base model instead of an adapter.
+#  3. FAILURE SHAPE is hygiene and slips, not reasoning. 2 of the 8 compile failures
+#     are an unused "strings" import (goimports flips both: is_palindrome, title_case
+#     -> compiles; is_palindrome passes). keys_sorted is a one-token slip
+#     (`append(key, k)` for `keys`). Pass-given-compiles 88% vs the 7B's 94%.
+#  4. CAVEAT — possible conversion/quantization artefact. 9/48 generations contain
+#     1-space-indented lines (mixed tab/space; gofmt-invalid), never seen from the
+#     Qwen2.5 4-bit bases on this bench. It compiles, so it does not explain the
+#     score, but it is a fingerprint that the mlx-community 4-bit MoE build may be
+#     lossy. UNTESTED: the same prompts through Ollama's Q4_K_M GGUF or an 8-bit MLX
+#     build. Until that A/B is drawn, "-6" is a fact about THIS artefact, not about
+#     Qwen3-Coder-30B-A3B in general (the 2026-07-20 backend lesson, again).
+#  5. Wall time was not instrumented this run; no speed claim is made.
+#
+# NEXT (information per dollar, all $0):
+#  a. quantization A/B on the 12 failing tasks (GGUF Q4_K_M via Ollama, or 8-bit MLX)
+#     — decides whether finding 1 is about the model or the build.
+#  b. test-gated router over {7B base, 30B-A3B base}: union 46/48, but on most
+#     disagreements both compile, so a compile gate captures little; needs the TEST
+#     signal (finding 5's condition, unchanged).
+#  c. RLVR (unit-test reward, GRPO+LoRA) on the 7B base: the one training signal never
+#     tried here; 2026 small-model results (+13pp pass@1 on MBPP at 0.6-1B) make it
+#     the first recipe with a real chance to beat base, and it fits Kaggle's free T4.
+################################################################################
