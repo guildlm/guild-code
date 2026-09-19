@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from mine_git_history import _BUGFIX, _JUNK  # noqa: E402  shared classifier, never copied
 
 DELIM = "\x02COMMIT\x02"
+STATUS_RE = re.compile(r"^([MADRCTU])\d*\t(.+)$")
 
 
 def sh(args, cwd, timeout=600, env=None):
@@ -48,9 +49,9 @@ def log_commits(repo, n):
         sha, parents, subject, body = parts[0], parts[1].split(), parts[2], parts[3]
         files = []
         for line in rest.splitlines():
-            if "\t" in line:
-                st, path = line.split("\t", 1)
-                files.append((st[0], path.split("\t")[-1]))
+            m = STATUS_RE.match(line)          # name-status rows only; body lines may contain tabs too
+            if m:
+                files.append((m.group(1), m.group(2).split("\t")[-1]))
         commits.append({"sha": sha, "parent": parents[0] if parents else None, "subject": subject,
                         "body": body.strip(), "files": files})
     return commits
