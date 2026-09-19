@@ -17,7 +17,8 @@
 #   go-dev-mined (SFT)       23      24         genuinely worst (mining data, real rambling)
 #   base 14B                 36      43         scale barely moves the bench
 #   go-dev-14b (SFT)         27      40         14B specialist also <= base (-3)
-#   Qwen3-Coder-30B-A3B 4bit 36      38         2026 MoE base: -6 vs 7B base, but complementary (union 46/48) — ADDENDUM 2026-09-19 at end
+#   Qwen3-Coder-30B-A3B      36      38         mlx-community 4-bit build — LOSSY (9/48 gens 1-space-indented); see ADDENDUM B
+#   Qwen3-Coder-30B-A3B      44      44         Ollama Q4_K_M build, served temp=0 — best RAW single model in the archive; ADDENDUM B 2026-09-19
 #
 # FINDINGS:
 #  1. Every specialist <= base at BOTH 7B and 14B; the deficit is almost entirely
@@ -706,4 +707,57 @@ offline with rescore_dev_bench.py, no GPU.
 #  c. RLVR (unit-test reward, GRPO+LoRA) on the 7B base: the one training signal never
 #     tried here; 2026 small-model results (+13pp pass@1 on MBPP at 0.6-1B) make it
 #     the first recipe with a real chance to beat base, and it fits Kaggle's free T4.
+################################################################################
+
+################################################################################
+# ADDENDUM B (2026-09-19, same night) — the -6 was the BUILD. Quantization A/B drawn.
+################################################################################
+# Design: 2x2, {7B base, 30B-A3B} x {mlx-community 4-bit via mlx_bench.py, Ollama
+# Q4_K_M via served_bench.py}. served_bench.py imports SYSTEM, extract_code, compiles,
+# runs_green and the goimports repair from the MLX benches, so the two columns differ
+# in weights+backend ONLY. Served regime is temp=0, seed=0 (Ollama; closest to greedy,
+# not byte-guaranteed). N=48, all four generation sets committed, re-scored offline.
+# Builds: mlx-community/Qwen3-Coder-30B-A3B-Instruct-4bit snapshot 6e302ea604ad;
+# ollama qwen3-coder:30b 06c1097efce0 (qwen3moe, Q4_K_M).
+#
+#   model      build                 raw   +goimports   compiles   1-space fingerprint
+#   7B base    mlx 4-bit (greedy)     39      44         42/48        0/48
+#   7B base    ollama Q4_K_M (t=0)    35      40         39/48        0/48
+#   30B-A3B    mlx 4-bit (greedy)     36      38         40/48        9/48
+#   30B-A3B    ollama Q4_K_M (t=0)    44      44         46/48        0/48   <-- best raw in archive
+#
+# FINDINGS:
+#  1. THE -6 WAS THE BUILD, NOT THE MODEL. Same weights family, other 4-bit build: +8
+#     raw (36 -> 44), compiles 40 -> 46, fingerprint 9 -> 0. Addendum A's caveat was the
+#     finding. 30B-A3B/Q4_K_M is the first SINGLE model in this archive to reach 44
+#     without goimports (goimports changed 23 of its generations and flipped ZERO
+#     verdicts: its 4 misses are real — errors_wrap, min_heap fail to build; lru_touch,
+#     rotate_matrix build and are wrong). The 7B needs the repair to reach 44.
+#  2. THE BUILD EFFECT HAS A SIGN PER MODEL. The 7B LOSES 4 going MLX -> Ollama; the
+#     30B-A3B GAINS 8. There is no "backend constant" to subtract — the 2026-07-20
+#     'served tie was an Ollama-GGUF artefact' finding was itself a fact about ONE
+#     model's two builds. Byte-identical code across the two builds: 7B 10/48,
+#     30B-A3B 4/48. Two 4-bit builds of one checkpoint are two different objects.
+#  3. THE FINGERPRINT WAS A BUILD SIGNATURE, NOT A PER-TASK PREDICTOR. In the lossy
+#     build, 4 of 9 fingerprinted generations failed vs 8 of 39 clean ones (44% vs 21%,
+#     n too small to lean on). Its value was diagnostic: it said "this artefact is off"
+#     BEFORE the A/B, which is exactly why the -6 was logged as a caveat and not a verdict.
+#  4. THE UNION MOVED: 7B/mlx | 30B-A3B/Q4_K_M = 47/48 raw (only errors_wrap fails
+#     both raw; with goimports the 7B passes it -> 48/48). Same ceiling the diverse
+#     14B fleet reached on 2026-07-23, now from TWO untuned bases. The oracle caveat
+#     from finding 5 stands unchanged: a realizable router still needs a TEST signal.
+#  5. Cost: 136s wall for 48 tasks served (3.3B active) vs 225s for the dense 7B on the
+#     same endpoint — the MoE IS faster here, ~1.65x, measured this time.
+#
+# WHAT CHANGES:
+#  - Every number in this file now carries its BUILD, not just its model. A row
+#    without a build identifier is under-specified (this is the 2026-08-15 lesson —
+#    "within-process determinism is not portability" — one level down: within-BUILD).
+#  - New default local Go base for the algorithm work: qwen3-coder:30b (Ollama Q4_K_M).
+#    The lossy MLX build's cache is deleted (16 GB); its generations are committed and
+#    its snapshot is pinned above, so the number is reproducible without the weights.
+#  - Ranked next: (a) test-gated router {7B/mlx, 30B/Q4_K_M} — union 47-48, both compile
+#    on most disagreements, so the gate must be a test; (b) RLVR on the 7B (unchanged);
+#    (c) an 8-bit MLX build of the 30B-A3B, to split 'MLX 4-bit conversion' from 'MLX'.
+# Tools: served_bench.py (this addendum), backend_ab.py (the table above, never by hand).
 ################################################################################
