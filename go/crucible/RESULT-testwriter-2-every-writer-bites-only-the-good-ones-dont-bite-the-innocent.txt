@@ -1,0 +1,75 @@
+RESULT (2026-09-19, fourth draw) — every writer bites; only the good ones don't bite the innocent
+==================================================================================================
+Prereg: PREREG-testwriter-2-the-corrected-pipeline-and-the-specialists.txt (commit 1499d49, before any
+generation). Pipeline REGISTERED this time: extract -> stripdecl(candidate) -> goimports; original prompt.
+Fresh generations, six writers, all committed as data/router_selftests_v2_*.jsonl. Candidates as before
+(30B/Q4_K_M served 44 preferred; 7B/MLX greedy 39). Tools: router_bench.py (--mlx-model/--mlx-adapter
+added for the specialist arm), writer_teeth.py (the table at the end; nothing counted by hand).
+
+(A) THE CORRECTED PIPELINE, REGISTERED — served writers:
+  writer             validity (before -> after)   COMPILE+STRICT   switches
+  qwen3-coder:30b          2 -> 36/48                  46          min_heap (compile), rotate_matrix (test)
+  qwen2.5-coder:7b        13 -> 27/48                  46          same two
+  PREDICTIONS -> OUTCOMES: P(30B >= 33)=0.70 HIT (36) · P(7B >= 24)=0.65 HIT (27) · P(CTS 30B == 46)=0.65 HIT
+    · P(== 47)=0.10 / P(< 46)=0.25 not taken. The post-hoc numbers of the third draw REPRODUCED on a fresh
+    served draw (36 and 27 exactly), so they are now registered facts.
+
+(B) THE SPECIALIST QUESTION — MLX greedy, 7B base, same pipeline and prompt:
+  writer                        validity (before -> after)   COMPILE+STRICT   VALID-ONLY
+  7B base, no adapter                14 -> 26/48                  47 (!)           46
+  7B + go-test                       16 -> 31/48                  45               45
+  7B + go-test-v2                    16 -> 22/48                  45               45
+  7B + go-test-scaled                13 -> 17/48                  46               45
+  PREDICTIONS -> OUTCOMES: P(base >= 24)=0.55 HIT (26) · P(best adapter > base)=0.40 HIT (go-test 31 > 26)
+    · P(any adapter > 36)=0.10 MISS-as-predicted (31) · P(any adapter < base-4)=0.35 HIT (scaled 17)
+    · silent branch ("all within +-2") did NOT fire: spread 17..31.
+
+  (!) THE 47 IS THE ORACLE, REACHED ONCE, BY AN INVALID TEST. The base 7B's lru_touch self-test is NOT
+  valid on the reference (it assumes a zero-value Counter works; the reference needs NewCounter), yet it
+  fails the 30B's Counter and passes the 7B's, so STRICT switched and the hidden bench agreed. VALID-ONLY
+  (use a test only if it passes the reference) scores 46. A wrong test routed right. Recorded as luck,
+  not as a method: the registered primary arm did reach 47, and the log says on what.
+
+(C) VALIDITY IS HALF THE STORY (writer_teeth.py — computed, not registered):
+  writer                    valid   teeth (wrong candidates failed)   false alarm (right candidates failed)
+  qwen3-coder:30b           36/48          12/13                              20/83
+  qwen2.5-coder:7b served   27/48          11/13                              34/83
+  7B MLX base               26/48          12/13                              36/83
+  7B + go-test              31/48          11/13                              30/83
+  7B + go-test-v2           22/48          12/13                              46/83
+  7B + go-test-scaled       17/48          12/13                              53/83
+  TEETH ARE CONSTANT. Every writer fails 11-12 of the 13 candidates the hidden bench calls wrong. What
+  separates writers is the FALSE ALARM rate, 20/83 to 53/83: how often the test bites code that is right.
+  That is validity from the other side. The go-test adapter's +5 validity over its base is a -6 in false
+  alarms (30 vs 36) and no change in teeth — it learned not to bite the innocent quite as often, and
+  nothing about biting harder. STRICT's must-discriminate rule is why false alarms cost nothing tonight:
+  a false alarm on the preferred candidate only switches if the alternate passes the same test.
+
+FINDINGS:
+  1. The third draw's post-hoc numbers are now registered and reproduced: 36/48 (30B) and 27/48 (7B
+     served) under stripdecl -> goimports. The router at 46 is a registered fact for both served writers.
+  2. FIRST SPECIALIST EDGE TO SURVIVE A REPAIR — and it is small, non-monotone, and below the 30B.
+     go-test (v1) beats its base on validity by +5 with the base given every repair. go-test-v2 (-4)
+     and go-test-scaled (-9) are net-negative, the July pattern. So the edge is real for ONE adapter and
+     it is not "training helps": two of three trained adapters hurt. Nothing trained reaches the
+     untrained 30B's 36.
+  3. The two properties that matter for routing are validity and teeth, and only validity moved
+     tonight. Teeth were 11-12/13 for every writer, trained or not, 7B or 30B. The bench's wrong
+     candidates are easy to bite; the innocent are hard not to. A test writer worth training is one
+     with FEWER FALSE ALARMS — measurable with the Go toolchain alone, no judge, against reference +
+     any set of known-right candidates.
+  4. 47 was reached once by the base 7B on MLX, via a test that is wrong about the spec. That is the
+     shape of the last point: lru_touch needs a test that probes how the 30B's Counter fails, and the
+     only test that did so tonight got there by assuming a constructor the spec does not promise.
+
+WHAT CHANGES:
+  - Registered pipeline for every test writer from now on: extract -> stripdecl -> goimports.
+  - The go-test specialist line is REOPENED on a measurable target (false alarms / validity), and closed
+    on the router (its router is 45, worse than its base's 46-47: fewer false alarms bought nothing
+    where it mattered, because teeth did not move).
+  - The realizable router is 46/48 on this bench with two untuned bases and a self-written test; 47 is
+    the oracle and was touched once, by luck.
+NEXT (in order): (a) Report #28 (this night's second half). (b) RLVR on the 7B — now with a sharper
+  reward than pass@1: for a TEST writer, reward = passes reference AND fails a mutant (the mutation
+  bench already exists), i.e. train the false-alarm rate down and the teeth up, both verifiable, $0
+  on Kaggle. (c) The axis campaign, F4 early on the next eligible process.

@@ -70,6 +70,8 @@ def main() -> int:
     ap.add_argument("--candidates", nargs="+", required=True, help="NAME=path, preferred first")
     ap.add_argument("--bench", default=os.path.join(os.path.dirname(__file__), "data", "go_dev_bench.jsonl"))
     ap.add_argument("--test-writer", help="served model that writes the self-test")
+    ap.add_argument("--mlx-model", help="write the self-tests with a local MLX model instead (greedy)")
+    ap.add_argument("--mlx-adapter", help="LoRA adapter path for --mlx-model (the specialist question)")
     ap.add_argument("--base-url", default="http://localhost:11434/v1")
     ap.add_argument("--temp", type=float, default=0.0)
     ap.add_argument("--seed", type=int, default=0)
@@ -101,13 +103,25 @@ def main() -> int:
         tests = {r["id"]: r for r in (json.loads(l) for l in open(a.load_tests))}
         print(f"loaded {len(tests)} self-tests from {a.load_tests}")
     else:
-        if not a.test_writer:
-            sys.exit("--test-writer or --load-tests required")
+        if not a.test_writer and not a.mlx_model:
+            sys.exit("--test-writer, --mlx-model or --load-tests required")
+        system = SYSTEM_TEST_ONLY if a.test_system == "only" else SYSTEM_TEST
+        gen = None
+        if a.mlx_model:
+            from mlx_lm import generate, load as mlx_load
+            mdl, tok = mlx_load(a.mlx_model, adapter_path=a.mlx_adapter)
+            im_end = tok.encode("<|im_end|>")          # same EOS fix as mlx_bench.py
+            if len(im_end) == 1:
+                tok.eos_token_ids.add(im_end[0])
+            def gen(prompt):  # greedy, like mlx_bench
+                msgs = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+                return generate(mdl, tok, prompt=tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=False),
+                                max_tokens=a.max_tokens, verbose=False)
+            a.test_writer = f"mlx:{os.path.basename(a.mlx_model)}" + (f"+{os.path.basename(a.mlx_adapter.rstrip('/'))}" if a.mlx_adapter else "")
         t0 = time.time()
         for t in tasks:
             try:
-                out = ask(a.base_url, a.test_writer, t["prompt"], a.temp, a.max_tokens, a.seed,
-                          SYSTEM_TEST_ONLY if a.test_system == "only" else SYSTEM_TEST)
+                out = gen(t["prompt"]) if gen else ask(a.base_url, a.test_writer, t["prompt"], a.temp, a.max_tokens, a.seed, system)
                 code = extract_code(out)
                 if imports_exe:
                     code = _repair_imports(code, imports_exe)
