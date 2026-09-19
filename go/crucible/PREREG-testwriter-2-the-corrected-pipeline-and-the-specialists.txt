@@ -1,0 +1,28 @@
+PREREG (2026-09-19, fourth draw, before any generation) — the corrected pipeline, registered; and do
+the go-test SPECIALISTS raise validity-on-reference?
+=====================================================================================================
+(A) REGISTER WHAT WAS POST-HOC. Pipeline: extract -> stripdecl(candidate) -> goimports. Prompt: the
+    ORIGINAL mlx_test_bench.SYSTEM ("only" is retired). Writers: qwen3-coder:30b and qwen2.5-coder:7b
+    served, temp 0, seed 0. Candidates and hidden verdicts unchanged (30B/Q4_K_M 44 preferred, 7B/MLX 39).
+    Fresh generations (a served temp-0 draw is not byte-guaranteed; the earlier sets stay committed).
+    PREDICTIONS:
+      P(30B validity >= 33/48)                       = 0.70   (offline re-score of the earlier draw gave 36)
+      P(7B  validity >= 24/48)                       = 0.65   (earlier draw re-scored: 27)
+      P(COMPILE+STRICT, 30B writer, == 46)           = 0.65
+      P(COMPILE+STRICT, 30B writer, == 47)           = 0.10   (only if the Counter test probes the 30B defect)
+      P(COMPILE+STRICT, 30B writer, <  46)           = 0.25
+(B) THE SPECIALIST QUESTION, POSED PROPERLY. Same pipeline, same prompt, MLX greedy on
+    mlx-community/Qwen2.5-Coder-7B-Instruct-4bit with: no adapter (control) · go-test · go-test-v2 ·
+    go-test-scaled (all from .mlx-adapters, published in guildlm/go-lora-adapters). Metric:
+    validity-on-reference after the pipeline. 2026-07-21 found go-test's mutation-bench edge was a
+    VALIDITY premium the base+goimports also captured; the pipeline now gives the base every repair.
+    PREDICTIONS:
+      P(7B-MLX base validity >= 24/48)               = 0.55
+      P(best go-test adapter > 7B-MLX base)          = 0.40   (the premium should be gone; if it is not, that
+                                                                is the first specialist edge to survive a repair)
+      P(any go-test adapter > 36/48)                 = 0.10
+      P(any go-test adapter < base - 4)              = 0.35   (the July pattern: specialists net-negative)
+    Router arms are reported for every writer (COMPILE+STRICT primary); the specialist question is
+    answered by validity, not by the router.
+SILENT BRANCH: if all four MLX writers land within +-2 of each other, the adapters did nothing the
+    pipeline did not; the go-test specialist line closes on validity too.
