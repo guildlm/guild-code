@@ -24,7 +24,9 @@ SYSTEM = ("You are a senior Go engineer fixing a bug in a real repository. You a
           "EVERY given file in full, each in its own ```go block whose first line is a comment "
           "`// file: <path>` exactly as given. Change only what the fix needs. No commentary.")
 
-FILE_RE = re.compile(r"```go\s*\n//\s*file:\s*(\S+)\s*\n(.*?)```", re.S)
+# the tag may sit as the first line INSIDE the fence (as asked) or on the line just BEFORE it (the
+# form the prompt itself uses to show the files, which models mirror); both are the same answer.
+FILE_RE = re.compile(r"(?://\s*file:\s*(\S+)\s*\n\s*)?```go\s*\n(?://\s*file:\s*(\S+)\s*\n)?(.*?)```", re.S)
 
 
 def ask(base_url, model, prompt, temp, max_tokens, seed):
@@ -45,10 +47,17 @@ def build_prompt(t):
 
 
 def extract_files(out, wanted):
-    got = {}
-    for path, body in FILE_RE.findall(out):
+    got, untagged = {}, []
+    for before, inside, body in FILE_RE.findall(out):
+        path = before or inside
         if path in wanted:
             got[path] = body
+        elif path and os.path.basename(path) in {os.path.basename(w) for w in wanted}:
+            got[next(w for w in wanted if os.path.basename(w) == os.path.basename(path))] = body
+        elif not path:
+            untagged.append(body)
+    if len(wanted) == 1 and not got and len(untagged) == 1:  # one file asked, one block returned
+        got[next(iter(wanted))] = untagged[0]
     return got
 
 
@@ -96,6 +105,10 @@ def main():
     gens = {}
     if a.load:
         gens = {r["id"]: r for r in (json.loads(l) for l in open(a.load))}
+    elif a.save and os.path.exists(a.save):  # resume: rows already drawn are kept as drawn
+        gens = {r["id"]: r for r in (json.loads(l) for l in open(a.save))}
+        print(f"resuming: {len(gens)} rows already in {a.save}", flush=True)
+    out_f = open(a.save, "a") if (a.save and not a.load) else None
     passed, rows, t0 = 0, [], time.time()
     by_status = {"compile_error": [0, 0], "test_fail": [0, 0]}
     for t in tasks:
@@ -114,19 +127,20 @@ def main():
         ok, tail = (score(t, files, a.cache, env, workroot) if complete else (False, "incomplete: missing files"))
         passed += ok
         by_status[t["parent_status"]][0] += ok; by_status[t["parent_status"]][1] += 1
-        print(f"{'+' if ok else '-'} {tid:40} [{t['parent_status']}] {'' if complete else 'INCOMPLETE '}{t['subject'][:60]}")
-        rows.append({"id": tid, "model": a.model or gens[tid].get("model"), "verdict": ok, "complete": complete,
-                     "parent_status": t["parent_status"], "output": out, "tail": tail})
+        print(f"{'+' if ok else '-'} {tid:40} [{t['parent_status']}] {'' if complete else 'INCOMPLETE '}{t['subject'][:60]}", flush=True)
+        row = {"id": tid, "model": a.model or gens[tid].get("model"), "verdict": ok, "complete": complete,
+               "parent_status": t["parent_status"], "output": out, "tail": tail}
+        rows.append(row)
+        if out_f and tid not in gens:
+            out_f.write(json.dumps(row) + "\n"); out_f.flush()
     n = len(tasks)
     print(f"\n{a.model or 'loaded'}: pass@1 = {passed}/{n} ({100*passed/n:.0f}%)  "
           f"compile_error {by_status['compile_error'][0]}/{by_status['compile_error'][1]} · "
           f"test_fail {by_status['test_fail'][0]}/{by_status['test_fail'][1]} · "
-          f"incomplete outputs {sum(not r['complete'] for r in rows)} · wall {time.time()-t0:.0f}s")
-    if a.save:
-        with open(a.save, "w") as f:
-            for r in rows:
-                f.write(json.dumps(r) + "\n")
-        print(f"wrote {len(rows)} generations -> {a.save}")
+          f"incomplete outputs {sum(not r['complete'] for r in rows)} · wall {time.time()-t0:.0f}s", flush=True)
+    if out_f:
+        out_f.close()
+        print(f"generations -> {a.save} ({len(rows)} rows, written as drawn)", flush=True)
     shutil.rmtree(workroot, ignore_errors=True)
     return 0
 
