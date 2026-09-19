@@ -1,5 +1,8 @@
 RESULT (2026-09-19) — the test writer wrote the function
 ==========================================================
+>> SUPERSEDED IN PART by RESULT-testwriter-the-form-was-the-whole-bottleneck.txt (same night): the post-hoc
+>> repair below ran goimports BEFORE stripdecl; in the corrected order the 30B's validity is 36/48, not 21,
+>> and the 'bottleneck is judgement' reading in FINDING 3 / NEXT (a) is withdrawn there.
 Prereg: PREREG-router-does-a-self-written-test-cash-the-union.txt (commit b74cadf, before any
 self-test existed). Tool: router_bench.py. Self-tests + per-candidate verdicts committed:
 data/router_selftests_30b.jsonl (writer qwen3-coder:30b), data/router_selftests_7b.jsonl

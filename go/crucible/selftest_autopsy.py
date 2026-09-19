@@ -49,17 +49,22 @@ def classify(test, out):
 
 
 def main(paths):
+    repair = "--repair" in paths
+    paths = [p for p in paths if p != "--repair"]
+    if repair:
+        from router_bench import strip_redecl
     for p in paths:
         rows = [json.loads(l) for l in open(p)]
         counts = collections.Counter()
         examples = {}
         for r in rows:
             ref = BENCH[r["id"]]["reference"]
-            status, out = run(ref, r["test"])
-            key = "valid" if status == "PASS" else classify(r["test"], out)
+            test = strip_redecl(ref, r["test"]) if repair else r["test"]
+            status, out = run(ref, test)
+            key = "valid" if status == "PASS" else classify(test, out)
             counts[key] += 1
             examples.setdefault(key, r["id"])
-        print(f"== {p}  ({rows[0]['writer']})")
+        print(f"== {p}  ({rows[0]['writer']}, prompt={rows[0].get('system','default')}{', AFTER stripdecl' if repair else ''})")
         for k, v in counts.most_common():
             print(f"  {v:>2}  {k}   e.g. {examples[k]}")
         print()

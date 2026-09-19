@@ -1,0 +1,69 @@
+RESULT (2026-09-19, third draw of the night) — the form was the whole bottleneck
+==================================================================================
+Prereg: PREREG-testwriter-can-a-prompt-and-a-repair-make-a-valid-test.txt (commit 7d98e44, before
+any test was generated). Registered pipeline: extract -> goimports -> stripdecl(candidate).
+New draws: data/router_selftests_only_30b.jsonl, data/router_selftests_only_7b.jsonl (prompt "only":
+TestXxx-only, spec-only assertions). Earlier draws (default prompt) re-scored offline alongside.
+
+AS REGISTERED (pipeline goimports -> stripdecl; prompt "only"):
+  writer            validity before repair   after   redeclares before   COMPILE+STRICT (primary)
+  qwen3-coder:30b          17/48              21/48        19/48               45
+  qwen2.5-coder:7b         16/48              21/48        14/48               46
+  PREDICTIONS -> OUTCOMES:
+    P(30B validity >= 30) = 0.55 ... MISS (21)      P(30B >= 36) = 0.30 ... MISS
+    P(30B redeclares before repair <= 10) = 0.60 ... MISS (19; the prompt halved 42 -> 19, not more)
+    P(7B validity >= 24) = 0.45 ... MISS (21)       P(30B > 7B validity) = 0.65 ... MISS (21 = 21)
+    P(CTS == 47) = 0.25 MISS · P(CTS == 46) = 0.50 MISS · P(CTS < 46) = 0.25 HIT (45)
+  The registered SILENT branch fired: validity did not move past the earlier post-hoc 21.
+
+AUTOPSY AFTER THE REGISTERED REPAIR (selftest_autopsy.py --repair) — and the bug it exposed:
+  30B "only":  21 valid · 12 IMPORT problem · 10 wrong assertion · 1 signature · 1 no Test func · 3 other
+  The 12 "IMPORT problem" rows are MY TOOL'S DOING: stripdecl drops the re-implemented function,
+  the imports that function used ("strings", "sort") become unused, and Go refuses to build the
+  file. goimports had already run — BEFORE the strip. The registered order was wrong.
+
+POST-HOC (NOT REGISTERED — labelled): stripdecl -> goimports (router_bench.py --imports-after-strip).
+Offline re-score of all four saved test sets; no model was run again:
+  writer × prompt            validity before   after (registered order)   after (post-hoc order)   COMPILE+STRICT
+  30B × default                    2/48               21/48                     36/48                  46
+  30B × "only"                    17/48               21/48                     31/48                  45
+  7B  × default                   13/48               16/48                     27/48                  46
+  7B  × "only"                    16/48               21/48                     28/48                  46
+  (oracle union 47 · best single 44 · compile gate 45; the router's two disjoint gains, min_heap by
+   the compile gate and rotate_matrix by the test gate, are both captured in every 46 above)
+
+FINDINGS:
+  1. THE BOTTLENECK WAS FORM, AND TWO DETERMINISTIC REPAIRS IN THE RIGHT ORDER REMOVE IT.
+     The best code model's tests went 2/48 -> 36/48 valid on the reference from stripdecl + goimports
+     alone: no prompt change, no training, no judge. Yesterday's "silent branch" conclusion ("the
+     bottleneck is judgement; train a test writer") was drawn on a tool with a bug in it and is
+     WITHDRAWN. What remains for the 30B (12/48) IS the judgement class (10 wrong assertions), and
+     it is a third of what it looked like.
+  2. THE REGISTERED PROMPT WAS NOT A LEVER; FOR THE 30B IT WAS A LOSS. With the pipeline fixed,
+     "only" scores 31 vs 36 for the default prompt, and its rotate_matrix test lost the property
+     that mattered (valid on reference, fails 30B, passes 7B). The 7B is flat (28 vs 27). Telling
+     the model what not to write bought nothing the AST repair does not buy better.
+  3. THE ROUTER IS AT ITS TONIGHT-CEILING, 46/48, FROM THREE OF FOUR WRITER×PROMPT DRAWS. The last
+     point is lru_touch (the Counter task): the 30B's own test PASSES its own wrong Counter (it does
+     not probe the bug), and the 7B's tests, though valid, also pass the 30B's version. 47 needs a
+     test that reaches the specific defect; that is judgement, and it is the residual.
+  4. I MISSED MOST OF MY PREDICTIONS TWICE TONIGHT, BOTH TIMES BECAUSE OF THE INSTRUMENT, NOT THE
+     MODEL. First the repair was missing, then it was mis-ordered. Under the corrected order the
+     registered predictions about the models would mostly have been right (30B >= 30: yes, 31;
+     30B > 7B: yes; 7B >= 24: yes) — recorded as MISSES because the pipeline that ran was the one
+     registered. Rule re-earned: test the instrument against a case whose answer you know (a test
+     that re-implements the function, with an import only the function uses) BEFORE registering
+     predictions on top of it.
+
+WHAT CHANGES:
+  - router_bench.py default pipeline for any future prereg: extract -> stripdecl -> goimports.
+  - The test-writer prompt stays the ORIGINAL (mlx_test_bench.SYSTEM); "only" is retired.
+  - Validity-on-reference is the metric for any test writer, with the corrected pipeline; the
+    number to beat is 36/48 (30B, default prompt, $0, no training).
+NEXT:
+  a. Register the corrected pipeline and draw the router once more (prediction: 46; 47 only if a
+     writer's Counter test probes construction/nil-map behaviour, which no draw tonight did).
+  b. The go-test SPECIALIST question, now properly posed: does any adapter raise validity-on-
+     reference above 36/48 under the same pipeline? Cheap: the adapters are on HF, the harness is
+     offline after generation, and the scorer is the Go toolchain.
+  c. RLVR on the 7B stays queued.

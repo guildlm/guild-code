@@ -42,13 +42,22 @@ def strip_redecl(impl: str, test: str) -> str:
     return p.stdout if p.returncode == 0 and p.stdout.strip() else test
 
 
+SYSTEM_TEST_ONLY = (
+    "You are a Go test-writing specialist. The implementation described below ALREADY EXISTS in "
+    "package sandbox; do not write it. Output one complete Go test file in a single ```go block, "
+    "package sandbox, standard library testing only, no commentary. Declare ONLY functions named "
+    "TestXxx(t *testing.T) — no other function, type, variable or constant. Assert only behaviour "
+    "the specification states; do not invent expectations for inputs the specification does not mention."
+)
+
+
 def load(path):
     return {json.loads(l)["id"]: json.loads(l) for l in open(path)}
 
 
-def ask(base_url, model, prompt, temp, max_tokens, seed):
+def ask(base_url, model, prompt, temp, max_tokens, seed, system=SYSTEM_TEST):
     body = json.dumps({"model": model, "temperature": temp, "max_tokens": max_tokens, "seed": seed,
-                       "messages": [{"role": "system", "content": SYSTEM_TEST},
+                       "messages": [{"role": "system", "content": system},
                                     {"role": "user", "content": prompt}]}).encode()
     req = urllib.request.Request(base_url.rstrip("/") + "/chat/completions", data=body,
                                  headers={"Content-Type": "application/json", "Authorization": "Bearer ollama"})
@@ -67,6 +76,11 @@ def main() -> int:
     ap.add_argument("--max-tokens", type=int, default=900)
     ap.add_argument("--save-tests", metavar="PATH")
     ap.add_argument("--load-tests", metavar="PATH", help="reuse saved self-tests (no model)")
+    ap.add_argument("--test-system", choices=("default", "only"), default="default",
+                    help="'only' = the registered 2026-09-19 test-writer prompt (TestXxx only, spec-only assertions)")
+    ap.add_argument("--imports-after-strip", action="store_true",
+                    help="POST-HOC pipeline fix (2026-09-19, second draw): run goimports AFTER stripdecl, because "
+                         "dropping a redeclared function leaves its imports unused and the file fails to build")
     ap.add_argument("--repair-redecl", action="store_true",
                     help="POST-HOC arm: strip test declarations that collide with the candidate under test")
     a = ap.parse_args()
@@ -92,23 +106,28 @@ def main() -> int:
         t0 = time.time()
         for t in tasks:
             try:
-                out = ask(a.base_url, a.test_writer, t["prompt"], a.temp, a.max_tokens, a.seed)
+                out = ask(a.base_url, a.test_writer, t["prompt"], a.temp, a.max_tokens, a.seed,
+                          SYSTEM_TEST_ONLY if a.test_system == "only" else SYSTEM_TEST)
                 code = extract_code(out)
                 if imports_exe:
                     code = _repair_imports(code, imports_exe)
             except Exception as e:  # noqa: BLE001
                 code = ""
                 print(f"  {t['id']}: ERR {type(e).__name__}", file=sys.stderr)
-            tests[t["id"]] = {"id": t["id"], "writer": a.test_writer, "test": code}
+            tests[t["id"]] = {"id": t["id"], "writer": a.test_writer, "system": a.test_system, "test": code}
         print(f"generated {len(tests)} self-tests with {a.test_writer} in {time.time()-t0:.0f}s")
 
     # 2. evaluate self-tests: validity on the reference, verdict per candidate
     for t in tasks:
         r = tests[t["id"]]
         test = r["test"]
+        r["valid_on_reference_raw"] = bool(test) and runs_green(t["reference"], test)
         if a.repair_redecl:
-            r["valid_on_reference_repaired"] = bool(test) and runs_green(t["reference"], strip_redecl(t["reference"], test))
-            r["self_repaired"] = {n: bool(test) and runs_green(cands[n][t["id"]]["code"], strip_redecl(cands[n][t["id"]]["code"], test)) for n in names}
+            def fixed(impl, tst):
+                out = strip_redecl(impl, tst)
+                return _repair_imports(out, imports_exe) if (a.imports_after_strip and imports_exe) else out
+            r["valid_on_reference_repaired"] = bool(test) and runs_green(t["reference"], fixed(t["reference"], test))
+            r["self_repaired"] = {n: bool(test) and runs_green(cands[n][t["id"]]["code"], fixed(cands[n][t["id"]]["code"], test)) for n in names}
             r["valid_on_reference"], r["self"] = r["valid_on_reference_repaired"], r["self_repaired"]
         else:
             r["valid_on_reference"] = bool(test) and runs_green(t["reference"], test)
@@ -129,19 +148,21 @@ def main() -> int:
     oracle = sum(any(hidden[n][i] for n in names) for i in ids)
     best = {i: pref for i in ids}
     compile_gate = {i: (pref if builds[pref][i] else alt) for i in ids}
-    strict, loose, loose7, valid_only = {}, {}, {}, {}
+    strict, loose, loose7, valid_only, cts = {}, {}, {}, {}, {}
     for i in ids:
         s = tests[i]["self"]
         strict[i] = alt if (not s[pref] and s[alt]) else pref
+        cts[i] = alt if not builds[pref][i] else strict[i]   # compile gate, THEN the test gate
         loose[i] = pref if s[pref] else (alt if s[alt] else pref)
         loose7[i] = pref if s[pref] else alt
         valid_only[i] = strict[i] if tests[i]["valid_on_reference"] else pref
 
     valid = sum(tests[i]["valid_on_reference"] for i in ids)
-    print(f"\n{'[POST-HOC redecl repair] ' if a.repair_redecl else ''}self-test validity on reference: {valid}/48   (tests present: {sum(bool(tests[i]['test']) for i in ids)}/48)")
+    valid_raw = sum(tests[i]["valid_on_reference_raw"] for i in ids)
+    print(f"\nself-test validity on reference: {valid}/48 {'after stripdecl' + ('+goimports [POST-HOC order]' if a.imports_after_strip else '') if a.repair_redecl else ''} (before repair: {valid_raw}/48; tests present: {sum(bool(tests[i]['test']) for i in ids)}/48; prompt={a.test_system if not a.load_tests else tests[ids[0]].get('system','default')})")
     print(f"{'arm':14} {'pass@1':>7}  switches (id:from->to = hidden outcome)")
     for label, ch in [("oracle-union", None), (f"best-{pref}", best), ("compile-gate", compile_gate),
-                      ("STRICT", strict), ("LOOSE", loose), (f"LOOSE-{alt}fb", loose7), ("VALID-ONLY", valid_only)]:
+                      ("STRICT", strict), ("COMPILE+STRICT", cts), ("LOOSE", loose), (f"LOOSE-{alt}fb", loose7), ("VALID-ONLY", valid_only)]:
         if ch is None:
             print(f"{label:14} {oracle:>4}/48"); continue
         sw = [f"{i}:{pref}->{ch[i]}={'+' if hidden[ch[i]][i] else '-'}(was {'+' if hidden[pref][i] else '-'})"
