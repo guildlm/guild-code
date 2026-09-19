@@ -91,9 +91,10 @@ python -m mlx_lm.fuse \
   --save-path ./go-dev-mixed-v4-fused
 ```
 
-The `go-dev-14b` adapter fuses onto `mlx-community/Qwen2.5-Coder-14B-Instruct-4bit`; the `*-15b-*` and
-`*-smoke` adapters were trained on the 1.5B base for pipeline smoke tests and carry no benchmark claim.
-Each adapter's `adapter_config.json` names its base.
+The `go-dev-14b` adapter fuses onto `mlx-community/Qwen2.5-Coder-14B-Instruct-4bit` and
+`go-dev-15b-mixed-v3` onto `mlx-community/Qwen2.5-Coder-1.5B-Instruct-4bit`. The `*-smoke` and `*-id` adapters are pipeline smoke tests and
+identity probes and carry no benchmark claim. Each adapter's `adapter_config.json` names its base; the
+inventory below is rendered from those files, so it cannot drift from the weights.
 
 ## Reproduce a score
 
