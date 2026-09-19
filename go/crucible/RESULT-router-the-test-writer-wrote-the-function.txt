@@ -1,0 +1,79 @@
+RESULT (2026-09-19) — the test writer wrote the function
+==========================================================
+Prereg: PREREG-router-does-a-self-written-test-cash-the-union.txt (commit b74cadf, before any
+self-test existed). Tool: router_bench.py. Self-tests + per-candidate verdicts committed:
+data/router_selftests_30b.jsonl (writer qwen3-coder:30b), data/router_selftests_7b.jsonl
+(writer qwen2.5-coder:7b), both served, temp 0, seed 0, goimports on the test file (registered).
+Candidates as drawn: 30B/Q4_K_M served (44/48) preferred, 7B/MLX greedy (39/48) alternate.
+
+REGISTERED ARMS, AS REGISTERED (no repair beyond goimports):
+  writer          validity   best   compile-gate   STRICT   LOOSE   VALID-ONLY   switches (STRICT)
+  qwen3-coder:30b    2/48     44        45           44       44        44        none
+  qwen2.5-coder:7b  13/48     44        45           45       45        45        rotate_matrix -> 7B (+)
+  (arithmetic, fixed before the draw: oracle union 47, best single 44, compile gate 45)
+
+PREDICTIONS -> OUTCOMES (primary arm = 30B writer):
+  P(validity >= 36/48) = 0.60 ........ MISS (2/48; 7B writer 13/48)
+  P(STRICT >= 46)      = 0.40 ........ MISS
+  P(STRICT == 45)      = 0.40 ........ MISS for 30B writer (44) · HIT for 7B writer (45)
+  P(STRICT <  45)      = 0.20 ........ HIT for 30B writer
+  P(LOOSE < STRICT)    = 0.55 ........ MISS (equal in every arm)
+  P(VALID-ONLY >= 46)  = 0.50 ........ MISS
+  P(7B-writer STRICT < 30B-writer STRICT) = 0.55 ... MISS — REVERSED (45 vs 44)
+  Read: I over-estimated the test writers by a wide margin, and the direction of the
+  writer comparison was wrong. Recorded as such.
+
+AUTOPSY (selftest_autopsy.py — classify each test's failure on the task's REFERENCE by the
+toolchain's first error; this is why "2/48" is a diagnosis, not a number):
+  30B writer:  42 REDECLARES the function under test · 2 assertion wrong on reference · 2 valid · 2 other
+  7B  writer:  22 REDECLARES · 11 assertion wrong on reference · 13 valid · 2 other
+  The stronger code model is the WORSE test writer as registered, and the reason is FORM, not
+  judgement: 42 of its 48 "tests" re-implement the function inside the test file (the prompt says
+  "Do not redefine the function under test"), so the package does not compile against ANY
+  candidate. That is the same defect class as a missing import — a form error the machine can fix.
+  (The 7B's 11 wrong assertions are the other class: e.g. reverse_runes expects "!界世，好你" for
+  "你好，世界！", turning a full-width "！" into ASCII "!" — a test that is wrong about Unicode.)
+
+POST-HOC ARM (NOT REGISTERED — labelled as such): deterministic redeclaration repair.
+  tools/stripdecl (go/ast, ~120 lines): drop from the test file every top-level declaration whose
+  name the CANDIDATE under test already declares; TestXxx funcs never dropped; sees only the
+  candidate, never the reference. Same spirit as goimports: fix the form, never the judgement.
+  writer          validity   STRICT   switches
+  qwen3-coder:30b   21/48      45      rotate_matrix -> 7B (+) · once_config -> 7B (harmless, both pass)
+  qwen2.5-coder:7b  16/48      45      rotate_matrix -> 7B (+) · once_config -> 7B (harmless, both pass)
+  Validity 2 -> 21 for the 30B writer from a form repair alone. Both writers now catch
+  rotate_matrix (30B's Rotate builds and is wrong; the self-test says so and passes the 7B).
+  Neither catches lru_touch (the Counter task): both self-tests are wrong on the reference too,
+  so they fail every candidate and cannot discriminate. once_config is the risk class made
+  visible: a self-test that rejects a hidden-correct 30B (over-specified) — harmless tonight
+  because the 7B is also correct there, but it is exactly how a router loses a point.
+
+WHAT THE UNION IS WORTH TONIGHT (arithmetic on the saved verdicts):
+  best single 44 · +compile gate (min_heap) 45 · +self-test STRICT (rotate_matrix) 45
+  the two gains are DISJOINT -> compile gate THEN test gate = 46/48, oracle 47.
+  ("compile-then-test" was not a registered arm; it is computed, not drawn.)
+  The remaining point (lru_touch) needs a test that is right about the spec where two writers
+  were wrong; errors_wrap is outside the union raw.
+
+FINDINGS:
+  1. The test signal is REAL but the bottleneck is the test writer's FORM, not its judgement. The
+     best code model wrote a function in 42/48 test files. One AST repair turned 2 valid tests
+     into 21 and bought the router its point. The algorithm's cheapest component (deterministic
+     repair) again did the work the weights would not.
+  2. A wrong self-test is worse than none: it fails every candidate (no signal) or fails the
+     right one (wrong signal). STRICT's "must discriminate" rule is what made the wrong tests
+     harmless tonight; LOOSE would have equalled it only because fallback stayed on 30B.
+  3. Validity on the reference (21/48 at best) is the ceiling on how much of the union a
+     self-test can cash. The next lever is the TEST WRITER, not the router: a test-writing
+     prompt/role that never re-implements (form) and asserts only what the spec states
+     (judgement), measured by validity-on-reference before it is ever used to route.
+  4. The go-test specialist question is re-opened from a new side: 2026-07-21 showed its edge
+     was a VALIDITY premium the base+goimports also had. Tonight validity is exactly the scarce
+     resource. A test writer worth training is one that raises validity-on-reference, and that is
+     a measurable target with a deterministic scorer — no LLM judge.
+
+NEXT:
+  a. Register a test-writer arm: prompt with an explicit "the implementation exists; write ONLY
+     TestXxx functions" + the redecl repair as part of the pipeline; target validity >= 30/48.
+  b. Then the router again, compile-then-test as the registered primary; ceiling 47.
+  c. RLVR on the 7B stays queued behind (a)-(b).
