@@ -1,0 +1,35 @@
+PREREG (2026-09-19, before any test is generated) — can a prompt and a repair make a VALID test?
+=================================================================================================
+QUESTION. The router draw (RESULT-router-the-test-writer-wrote-the-function.txt) found the test
+writer's dominant defect is FORM: 42/48 (30B) and 22/48 (7B) self-tests re-implement the function
+under test, so validity-on-reference was 2/48 and 13/48. A post-hoc go/ast repair (stripdecl)
+lifted the 30B to 21/48. Tonight both fixes are REGISTERED up front — a prompt that forbids the
+form error and asks for spec-only assertions, plus stripdecl in the pipeline — and the metric is
+validity-on-reference, deterministic and judge-free. Then the router is re-drawn with the arm the
+last log could only compute: compile gate THEN test gate.
+
+FIXED INPUTS (as before): candidates 30B/Q4_K_M served (44/48) preferred, 7B/MLX greedy (39/48)
+alternate, hidden verdicts as saved. Writers: qwen3-coder:30b and qwen2.5-coder:7b, served, temp 0,
+seed 0, max_tokens 900. Pipeline: extract -> goimports -> stripdecl(candidate) [registered].
+New test-writer system prompt (router_bench.py --test-system only, verbatim in the code):
+  the implementation already exists; write ONLY func TestXxx(t *testing.T) functions; declare no
+  other function, type, variable or constant; assert only behaviour the specification states; do
+  not invent expectations for inputs the specification does not mention.
+
+METRICS (all reported):
+  validity-on-reference (n/48) per writer, BEFORE and AFTER stripdecl (before = prompt alone).
+  autopsy classes per writer (selftest_autopsy.py, pre-repair): redeclares / wrong assertion / valid.
+  router arms: best, compile-gate, STRICT, COMPILE-THEN-STRICT (new, PRIMARY), LOOSE, VALID-ONLY.
+
+PREDICTIONS:
+  P(30B validity after pipeline >= 30/48)          = 0.55
+  P(30B validity after pipeline >= 36/48)          = 0.30
+  P(30B redeclares BEFORE repair <= 10/48)         = 0.60   (the prompt alone fixes most of the form)
+  P(7B  validity after pipeline >= 24/48)          = 0.45
+  P(30B validity > 7B validity, after pipeline)    = 0.65   (with form repaired, judgement should show)
+  P(COMPILE-THEN-STRICT, 30B writer, == 47)        = 0.25   (lru_touch caught, zero wrong switches)
+  P(COMPILE-THEN-STRICT, 30B writer, == 46)        = 0.50
+  P(COMPILE-THEN-STRICT, 30B writer, <  46)        = 0.25   (a wrong test routes a 30B-only win to 7B)
+SILENT BRANCH: if validity does not move (<= 21/48 for the 30B) the prompt did nothing beyond
+  the repair; the bottleneck is then judgement, and the next lever is a test-writer that is
+  TRAINED on validity-on-reference, not prompted.
