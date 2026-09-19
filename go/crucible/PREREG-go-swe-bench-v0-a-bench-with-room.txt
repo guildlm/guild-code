@@ -1,0 +1,34 @@
+PREREG (2026-09-19, before any task is mined or any model is run) — go_swe_bench v0: a bench with room
+=====================================================================================================
+WHY. go_dev_bench v2 is saturated (13 runs, union 48/48, best single 44). The archive's own mining
+pipeline holds 4,305 real bug-fix commits from 733 repos, minus the tests it dropped by design. This
+bench inverts that filter and verifies every task with the toolchain. Selection is fixed HERE, before
+looking at any task, so the bench cannot be tuned to a model.
+
+SELECTION (mine_swe_tasks.py, no LLM anywhere):
+  repos: repos.swe_v0.jsonl = the 80 most-starred repos with size <= 40 MB, permissive license,
+         >= 800 stars (chosen from repos.jsonl by that rule alone, before cloning).
+  commit: first-parent, non-merge, last 400; subject matches the SFT miner's bug-fix regex (shared);
+          .go-only; <= 4 .go files; >= 1 modified non-test .go; >= 1 modified/added _test.go; no go.mod.
+  verify: at the commit, `go test` on the changed test packages is GREEN with >= 1 test run; at the
+          parent with the commit's test files copied in, it is RED. Red-by-compile-error is kept and
+          labelled (`compile_error`), red-by-assertion is `test_fail`. <= 6 tasks per repo, most recent
+          first, <= 40 candidates tried per repo. CGO off.
+  stored: message (the "issue"), src before/after, test files, gold patch, fail-to-pass test names.
+
+EVALUATION v0 (file-level, the cheapest honest setting; the agentic setting comes after):
+  prompt = subject + body + the BEFORE content of every src file (paths named); tests HIDDEN.
+  model returns each file in full, in ```go blocks tagged with the path. Files written over the
+  parent worktree, the commit's tests copied in, `go test` on the changed packages: pass@1 iff green.
+  Model: qwen3-coder:30b served, temp 0 (the archive's best single). Then the 7B base as a second row.
+
+PREDICTIONS:
+  P(>= 40 verified tasks from the 80 repos)                 = 0.60
+  P(compile_error share of verified tasks >= 40%)           = 0.50   (a new test often names a new symbol)
+  P(30B file-level pass@1 in [20%, 60%])                    = 0.65   <- "a bench with room"
+  P(30B file-level pass@1 > 60%)                            = 0.15   (then v0 is still too easy; go agentic)
+  P(30B file-level pass@1 < 20%)                            = 0.20   (then the prompt lacks context; add
+                                                                       the failing test names, re-register)
+  P(30B > 7B by >= 10 points)                               = 0.60   (the first bench where scale shows)
+SILENT BRANCH: if fewer than 20 tasks verify, the bottleneck is repo build hygiene (deps, cgo,
+  generated code), not the idea; widen the repo pool before reading any model number.
