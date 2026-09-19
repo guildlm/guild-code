@@ -32,3 +32,11 @@ PREDICTIONS:
   P(30B > 7B by >= 10 points)                               = 0.60   (the first bench where scale shows)
 SILENT BRANCH: if fewer than 20 tasks verify, the bottleneck is repo build hygiene (deps, cgo,
   generated code), not the idea; widen the repo pool before reading any model number.
+
+AMENDMENT 1 (2026-09-19, after mining, BEFORE any model call). The miner verified 246 tasks from 79
+repos (502 candidates; 191 test_fail, 55 compile_error; 104 min wall). A full-file rewrite of up to 4
+files per task at served speed makes 246 tasks a multi-hour draw, so the v0 EVAL SET is fixed by rule,
+not by looking: the most recent verified task of EVERY repo whose before-content is <= 30,000 chars
+(one per repo, so no repo dominates). That rule yields data/go_swe_bench_v0_eval79.jsonl. All
+predictions above now refer to this set. The full 246 stay committed for later draws.
+  Outcome so far: P(>= 40 verified) = 0.60 -> HIT (246). P(compile_error share >= 40%) = 0.50 -> MISS (22%).

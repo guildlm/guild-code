@@ -1,0 +1,10 @@
+{
+ "repos": 79,
+ "candidates": 502,
+ "verified": 246,
+ "compile_error": 55,
+ "test_fail": 191,
+ "no_bug_caught": 0,
+ "not_green_at_fix": 0,
+ "wall_s": 6264
+}
