@@ -33,9 +33,45 @@ DESIGN (all committed with this file: swe_bench_selftest_writer.py, swe_bench_lo
   ORDER (unattended, _queue_selftest_arm.sh): 30B loop -> 7B loop (its r0 = the 7B edit-form row)
     -> router. Same builds as every row since the 19th (Ollama Q4_K_M, 32k-context variants).
 
-INSTRUMENT RESULTS (filled in from logs/selftest_writer_30b.log and logs/selftest_hidden_instrument.log
-before the predictions were written):
-  <filled below>
+INSTRUMENT RESULTS (drawn and measured BEFORE the predictions below were written):
+  The commits' OWN tests through the keep rule (--model hidden, no model): kept 32/51 (31 USEFUL, 1
+    isolation false alarm: sqlx's test needs another test file's setup); 16 do not compile in isolation
+    (9 compile_error tasks whose test names the missing symbol + 7 test_fail tasks whose test uses helpers
+    from sibling test files). This is the ceiling of the keep rule for a PERFECT writer: 32.
+  Gold fix through the loop with those as self-tests, --no-peek, K=2: 51/51 at every rung; the only
+    feedback was sqlx's (the known false alarm) and it did not break the gold. The feedback path is clean.
+  THE 30B AS WRITER (data/go_swe_bench_v0_selftests_qwen3-coder_30b-32k.jsonl as drawn, .rescored.jsonl
+    after the two deterministic repairs added on the first 14 rows — silence 'declared and not used',
+    label test-less files; wall 73 min):
+      no test written        16/51   the writer returned the SOURCE FILE (its fix) instead of a test —
+                                     the router line's finding, on real repositories: asked for a test,
+                                     it writes the function. No deterministic repair maps that to a test.
+      does not compile       12/51   invented API (mock clients, methods that do not exist), broken
+                                     literals; 6 more were rescued by the unused-variable repair.
+      toothless               8/51   compiles, green on the buggy parent: never reaches the bug.
+      KEPT (red at parent)   15/51   of which USEFUL (green on gold) 2 — jaeger, CLIProxyAPI —
+                                     and FALSE ALARM (red on gold) 13.
+    Against the algorithm arm's r0 (15 passes; 16 with the fixed decledit): USEFUL ∧ r0-fail = 1
+    (CLIProxyAPI) — the only task the loop can GAIN. FALSE ALARM ∧ r0-pass = 2 (frp, go-zero) — the
+    tasks the loop can BREAK under --no-peek. The other 11 false alarms sit on tasks r0 already fails.
+  So the gate this arm registers is 15 tests of which 13 bite the right answer. That is the measurement:
+  what a test-gated loop and router cost when the writer is this one, on real code, with no reference.
 
-PREDICTIONS:
-  <filled below, after the instrument numbers>
+PREDICTIONS (30B loop = qwen3-coder:30b-32k, decledit with the last-wins fix, K=2, --no-peek):
+  P(r0 = 16)                                   = 0.70   (15 + ddns-go; served draws have reproduced)
+  P(r0 in [14, 17])                            = 0.90
+  P(r2 <= r0)                                  = 0.55   "the loop nets zero or harm with this gate"
+  P(r2 = r0 + 1)                               = 0.20   (CLIProxyAPI, the one useful test on an r0 failure)
+  P(r2 >= r0 + 2)                              = 0.10
+  P(frp or go-zero flips PASS -> fail by r2)   = 0.50   "a false alarm breaks a right fix" — the cost, counted
+  7B loop (qwen2.5-coder:7b-32k, same harness): P(7B r0 >= 9) = 0.55 (its repaired file-level number) ·
+    P(7B r0 >= 12) = 0.25 · P(7B r2 <= 7B r0) = 0.55
+  ROUTER (30B preferred, 7B alternate, gate = the 30B's 15 kept tests, STRICT):
+    P(STRICT >= preferred) = 0.60 · P(STRICT > preferred) = 0.25 · P(STRICT < preferred) = 0.15
+    P(oracle union >= 18) = 0.55 (file-level pattern: the 7B solved 3 the 30B did not)
+SILENT BRANCH: r2 == r0 for both models and STRICT == preferred -> the gate is inert at this quality:
+  13 false alarms and 2 useful tests move nothing either way. Then the writer, not the loop, is the whole
+  question, and its first failure is form (16 source files for 51 tests), which is where the router line
+  started too.
+WHAT IS NOT CLAIMED: nothing about test writers in general; one writer, one prompt, no training, on 51
+  tasks. The number says what THIS gate costs and buys, and carries its build.
