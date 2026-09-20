@@ -1,0 +1,41 @@
+PREREG (2026-09-20 night, before any loop call in this arm) — go_swe_bench: the SELF-TEST arm.
+"A test with teeth inside the loop"
+=========================================================================================
+WHY. The algorithm arm (RESULT-...-the-loop-had-nothing-to-hear) put the edit form at 15/51 and the
+repair loop at +0, because on 21 of 36 failures the compiler and the repository's existing tests were
+SILENT while the hidden test was red — structurally so: a bug-fix bench is the set of bugs the existing
+tests miss. The only signal that can see the defect is a test written for it. The router line measured
+who can write one on go_dev_bench (30B: 36/48 valid, teeth 12/13, false alarms 20/83). This arm puts
+that writer inside the loop on real repositories, and uses the same test as the router's gate.
+
+DESIGN (all committed with this file: swe_bench_selftest_writer.py, swe_bench_loop.py --selftests
+--no-peek, swe_bench_router.py, _queue_selftest_arm.sh):
+  WRITER: qwen3-coder:30b-32k, temp 0, seed 0, max_tokens 4000, prompt = commit message + the BUGGY
+    files; never sees a candidate. Repairs (deterministic, in this order): fence stutter collapsed, an
+    unclosed final fence closed, stripdecl against every source file of the package, goimports.
+  KEEP RULE (no reference, no gold): the test is kept iff it COMPILES at the parent and is RED there
+    (teeth for this bug). Run in isolation: every other _test.go of the package removed. A test green
+    at the parent is toothless; one that does not compile at the parent is dropped (this drops the
+    compile_error tasks almost by definition — the hidden test names a symbol that does not exist yet).
+  INSTRUMENT ON THE KNOWN CASE, drawn BEFORE this file's predictions (numbers below): the writer's
+    tests against the GOLD fix — USEFUL = red at parent AND green on gold; FALSE ALARM = kept AND red
+    on gold (this test would push a right fix into a wrong one); plus the commits' own hidden tests
+    run through the same keep rule (--model hidden) to show what a perfect writer would keep.
+  LOOP: as registered in the algorithm arm (decledit edit form, K = 2), plus: the kept self-test runs
+    in isolation on the candidate files every round; if it is red or no longer compiles, its failing
+    tests' blocks are fed back with the compiler's report. --no-peek: the loop stops ONLY when its own
+    signals are silent (toolchain + self-test green) or at K; it never sees the hidden verdict. The
+    ladder is therefore the STATE after each round, not "any round passed": a false alarm that breaks
+    a right fix is counted against the loop. r0 is unchanged by the self-test = the edit-form number.
+  ROUTER (offline, swe_bench_router.py): preferred = 30B final files, alternate = 7B final files, gate
+    = the 30B's kept self-test; STRICT: switch only when the test fails the preferred and passes the
+    alternate. Hidden tests judge. Oracle = union.
+  ORDER (unattended, _queue_selftest_arm.sh): 30B loop -> 7B loop (its r0 = the 7B edit-form row)
+    -> router. Same builds as every row since the 19th (Ollama Q4_K_M, 32k-context variants).
+
+INSTRUMENT RESULTS (filled in from logs/selftest_writer_30b.log and logs/selftest_hidden_instrument.log
+before the predictions were written):
+  <filled below>
+
+PREDICTIONS:
+  <filled below, after the instrument numbers>

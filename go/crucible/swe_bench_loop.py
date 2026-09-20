@@ -168,6 +168,10 @@ def main():
     ap.add_argument("--max-tokens", type=int, default=6000)
     ap.add_argument("--rounds", type=int, default=2, help="repair rounds after the first edit")
     ap.add_argument("--save"); ap.add_argument("--ids"); ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--selftests", help="self-test rows (swe_bench_selftest_writer.py); KEPT tests feed the loop and are never the judge")
+    ap.add_argument("--no-peek", action="store_true",
+                    help="stop only on the loop's OWN signals (toolchain + self-test silent) or K; never on the hidden verdict. "
+                         "The ladder then records the state after each round, so a false alarm that breaks a right fix is COUNTED.")
     a = ap.parse_args()
     tasks = [json.loads(l) for l in open(a.bench)]
     if a.limit:
@@ -176,6 +180,12 @@ def main():
         keep = set(a.ids.split(",")); tasks = [t for t in tasks if f"{t['repo']}@{t['sha'][:8]}" in keep]
     env = dict(os.environ, GOFLAGS="-mod=mod", GOTOOLCHAIN="auto", CGO_ENABLED="0")
     workroot = tempfile.mkdtemp(prefix="goswe-loop-"); tmp = tempfile.mkdtemp(prefix="decledit-")
+    selftests = {}
+    if a.selftests:
+        W = importlib.util.module_from_spec(importlib.util.spec_from_file_location("W", os.path.join(HERE, "swe_bench_selftest_writer.py")))
+        W.__spec__.loader.exec_module(W)
+        selftests = {r["id"]: r["test"] for r in (json.loads(l) for l in open(a.selftests)) if r.get("kept")}
+        print(f"self-tests: {len(selftests)} kept tests loaded from {a.selftests}", flush=True)
     done = {}
     if a.save and os.path.exists(a.save):
         done = {r["id"]: r for r in (json.loads(l) for l in open(a.save))}
@@ -222,10 +232,16 @@ def main():
                     new_files[p] = src; applied += 1
                     if msg:
                         notes.append(f"{p}: {msg}")
+            st_kind, st_fails = None, set()
             if applied:
                 files = new_files
                 kind, tout = toolchain(t, files, a.cache, env, workroot)
                 fb = feedback_text(kind, tout, baseline_fails, t["tests"], stale_names)
+                if tid in selftests:  # the self-test, in isolation, on the candidate files
+                    st_kind, st_fails, st_out = W.run_selftest(t, files, selftests[tid], a.cache, env, workroot)
+                    if st_kind != "green":
+                        st_fb = W.selftest_feedback(st_kind, st_fails, st_out)
+                        fb = (fb + "\n" if fb else "") + st_fb
             else:
                 kind, tout, fb = "noop", "", "no declaration was applied"
             if notes:
@@ -233,18 +249,22 @@ def main():
             ok, tail = h.score(t, files, a.cache, env, workroot)
             verdicts.append(ok)
             rounds.append({"round": rnd, "output": out, "applied": applied, "toolchain": kind, "feedback": fb,
+                           "selftest": st_kind, "selftest_fails": sorted(st_fails),
                            "hidden_verdict": ok, "hidden_tail": tail[-400:]})
-            print(f"  r{rnd} {tid:36} applied={applied} toolchain={kind:5} hidden={'PASS' if ok else 'fail'}"
+            print(f"  r{rnd} {tid:36} applied={applied} toolchain={kind:5} selftest={st_kind or '-':9} hidden={'PASS' if ok else 'fail'}"
                   f"{'  fb: ' + fb.strip().splitlines()[0][:70] if fb else ''}", flush=True)
-            if ok or fb is None:  # green on the hidden tests, or nothing left for the loop to act on
+            if fb is None or (ok and not a.no_peek):  # nothing left for the loop to act on (or, registered v1: hidden pass)
                 break
             feedback = fb
-        # ladder: the verdict at each round, carried forward once green (the loop stops there)
-        lad = [any(verdicts[:i + 1]) if i < len(verdicts) else any(verdicts) for i in range(a.rounds + 1)]
+        if a.no_peek:  # the state after each round; the last state is carried when the loop stopped early on its own
+            lad = [verdicts[i] if i < len(verdicts) else verdicts[-1] for i in range(a.rounds + 1)]
+        else:  # ladder: the verdict at each round, carried forward once green (the loop stops there)
+            lad = [any(verdicts[:i + 1]) if i < len(verdicts) else any(verdicts) for i in range(a.rounds + 1)]
         for i, v in enumerate(lad):
             ladder[i] += v
         r = {"id": tid, "model": a.model, "parent_status": t["parent_status"], "ladder": lad, "rounds": rounds,
-             "baseline_toolchain": kind0, "final_files": files if a.model != "gold" else None}
+             "baseline_toolchain": kind0, "selftest_used": tid in selftests, "no_peek": a.no_peek,
+             "final_files": files if a.model != "gold" else None}
         rows.append(r)
         print(f"{'+' if lad[-1] else '-'} {tid:40} [{t['parent_status']}] ladder={''.join('1' if v else '0' for v in lad)} {t['subject'][:50]}", flush=True)
         if out_f:
