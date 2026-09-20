@@ -69,13 +69,46 @@ the 7B was resumed on 2026-09-20 from its saved rows (the harness keeps rows as 
   has to guess its name; that is a property of the file-level setting, not a capability gap, and the
   test_fail-only rate 11/40 = 27.5% is the fairer "room" number for this form.
 
-(E) THE 7B ROW — qwen2.5-coder:7b (Q4_K_M, served), same harness:
-  <pending: the resumed draw is running; filled in below when it lands>
+(E) THE 7B ROW — qwen2.5-coder:7b (Q4_K_M, served), same harness (drawn 2026-09-19/20, resumed once):
+  registered pass@1 = 0/51 (0%)      wall ~2.9 h for the resumed 40 rows (4.3 min/row; the dense 7B is
+                                     SLOWER than the 30B-A3B's 3 min/row, as measured in July: 1.65x)
+  PREDICTION -> OUTCOME:
+    P(30B - 7B >= 10 points) = 0.60   registered: 21.6 - 0 = 21.6  HIT
+                                      repaired instrument (below): 21.6 - 17.6 = 3.9  MISS
+    Both are reported; the second is the one I believe, and here is why.
+  THE STUTTER HAD A PER-MODEL SIGNATURE. The fence stutter (section B.1) sits in 39/51 of the 7B's
+  outputs against 11/51 of the 30B's. The registered extractor read every one of them as an empty file.
+  Repaired extractor, same generations, swe_bench_rescore.py (only the rows read differently were
+  re-scored; 40 of them): 7B strict 9/51, lenient 9/51, truncated 3/51.
+  So the registered 0 was my tool's number, not the model's, and the registered 30B-7B gap was a fact
+  about which model stutters more — the same shape as July's 1-space fingerprint and the 15-August
+  build lesson: an instrument defect that lands harder on one arm than the other manufactures a gap.
+  Rule kept: the registered number stands as drawn; the repaired number is labelled; the verdict on the
+  prediction is given under both, and the log says which one it trusts.
+  7B under the repaired extractor, one class per row:
+     9  PASS               21  no-op: file returned UNCHANGED (median edit 10 chars — it retypes)
+     9  test: failed/panic   6  compile: undefined symbol    3  compile: other    3  truncated by the cap
+  by size tertile 5/17 · 4/17 · 0/17 — the same wall as the 30B's (7 · 4 · 0). compile_error tasks 0/11.
+  OVERLAP WITH THE 30B: both 6 · 30B-only 5 (casbin, go-kit, jaeger, sqlx, echo) · 7B-only 3 (delve,
+  kratos, nebula) -> UNION 14/51 (27.5%). Two bases that fail differently, again (finding 5 of July, the
+  quant A/B of the 19th) — a test-gated router has 3 tasks to win here, if it can tell them apart.
+  nebula's 7B pass re-run 3/3 alone (the task flagged flaky in the instrument test of the algorithm arm).
+
+(F) LABELLED REDRAWS OF THE CAPPED ROWS — max_tokens 12000, same seed/temp/build (post-hoc, not
+  registered; data/*.redraw12k.jsonl): 30B 4 rows -> gin-gonic/gin PASSES (24k-char file: the largest
+  tertile's first pass), esbuild/rqlite/fasthttp fail on content; 7B 3 rows -> 0/3.
+  30B: 11 registered -> 12 with the cap lifted (13 lenient). 7B: 9 stays. Largest tertile 0/17 -> 1/17.
+  The cap decided one verdict of the 51; the size wall is nearly all model.
 
 FINDINGS:
-  1. The bench has room and the room is not an artefact: 11/51 registered, 11/51 after repairing my own
-     extractor on 9 rows, 12/51 lenient. Three numbers, all far from 48/48. The archive's saturation was
-     the instrument's, as DIRECTION-2026-09-19 said.
+  1. The bench has room and the room is not an artefact: 30B 11/51 registered, 11/51 after repairing my
+     own extractor on 9 rows, 12/51 with the token cap lifted, 13/51 lenient; 7B 0 registered, 9
+     repaired; union 14. Every number is far from 48/48. The archive's saturation was the instrument's,
+     as DIRECTION-2026-09-19 said.
+  1b. THE SAME REPAIR MOVED THE 30B BY 0 AND THE 7B BY 9. An instrument bug is not a constant offset;
+     it has a per-arm signature, and a registered comparison across arms is only as good as the
+     instrument's symmetry. Check the tool's failure RATE per arm before reading a gap (July's
+     fingerprint rule, restated for extractors).
   2. What separates pass from fail at file level is SIZE, not the difficulty of the bug: small file +
      small patch passes, large file never. The next form must let the model EDIT rather than RETYPE —
      a diff or search/replace form, or the agentic loop with the toolchain in it. That is the registered
@@ -87,7 +120,7 @@ FINDINGS:
      prereg never stated. A v0.1 harness (stutter collapsed, missing=unchanged, max_tokens 12000) is
      registered for the next draw; v0's registered numbers stand as drawn.
 
-NEXT (in order): (i) 7B finishes -> section (E) and the last prediction. (ii) Labelled redraw of the 4
-truncated 30B rows (and the 7B's) at max_tokens 12000, same seed/temp. (iii) The algorithm arm on this
-bench: Builder loop with compile/test feedback, edit-form output, K repairs; prereg before the first call.
-(iv) Dataset card gets a Baselines section with the registered and lenient numbers and their build.
+NEXT: (i) done — (E). (ii) done — (F). (iii) The algorithm arm is REGISTERED and drawing:
+PREREG-go-swe-bench-algorithm-arm-edit-the-declaration-not-the-file.txt (decledit + K=2 toolchain-fed
+repair loop; instrument tested on the gold patches first, 51/51 with 0 false alarms). (iv) Dataset card
+Baselines section: written with these numbers, each row carrying its build and its extractor.

@@ -66,6 +66,21 @@ predictions committed before the first model call, and every generation:
 To reproduce a score you need the repos at the recorded SHAs: `datasets/mining/clone_repos.py --repos
 repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <generations>`.
 
+## Baselines (v0 eval set, 51 tasks, file-level, temp 0, seed 0, Ollama Q4_K_M served via 32k-context variants)
+
+| model | registered pass@1 | repaired extractor | + 12k-token cap | notes |
+|---|---|---|---|---|
+| qwen3-coder:30b (A3B) | **11/51** (21.6%) | 11/51 | 12/51 | compile_error tasks 0/11; passes by before-size tertile 7 · 4 · 0 (→ 1 with the cap lifted) |
+| qwen2.5-coder:7b | 0/51 | **9/51** (17.6%) | 9/51 | 39/51 outputs open the fence twice (` ```go / // file: x / ```go `); the registered regex read them as empty files |
+
+Union of the two: 14/51. Both fail the same way at the top of the size range: no file above ~16k chars
+passed either model at the registered cap. The gold patch of a passing task is ~48 chars (median); of a
+failing one ~157. Every number carries its extractor: "registered" is the harness at commit 69238f1,
+"repaired" collapses the fence stutter (commit 736c8f2), and the two are reported side by side because
+the repair moved one model by 0 and the other by 9. Full logs:
+`go/crucible/RESULT-go-swe-bench-v0-the-room-is-real-and-the-file-is-the-wall.txt`. The algorithm arm
+(declaration-level edits + a toolchain-fed repair loop) is pre-registered in the same directory.
+
 ## Caveats, stated up front
 
 - v0 is **file-level**: the model is told which files change. That is easier than the agentic setting
