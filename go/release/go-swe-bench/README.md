@@ -73,7 +73,9 @@ repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <g
 | qwen3-coder:30b (A3B) | **11/51** (21.6%) | 11/51 | 12/51 | compile_error tasks 0/11; passes by before-size tertile 7 · 4 · 0 (→ 1 with the cap lifted) |
 | qwen2.5-coder:7b | 0/51 | **9/51** (17.6%) | 9/51 | 39/51 outputs open the fence twice (` ```go / // file: x / ```go `); the registered regex read them as empty files |
 
-Union of the two: 14/51. Both fail the same way at the top of the size range: no file above ~16k chars
+| qwen3-coder:30b (A3B), **declaration-level edit form** (`tools/decledit`, K=2 toolchain-fed repair loop) | **15/51** (29.4%) | 16/51 (a repeated-declaration bug in the applier, fixed) | — | round 0 = 15, rounds 1–2 added 0: on 21 of the 36 failures the compiler and the existing tests had nothing to say; strict superset of the file-level passes at 40% of the output |
+
+Union of the two file-level rows: 14/51. Both fail the same way at the top of the size range: no file above ~16k chars
 passed either model at the registered cap. The gold patch of a passing task is ~48 chars (median); of a
 failing one ~157. Every number carries its extractor: "registered" is the harness at commit 69238f1,
 "repaired" collapses the fence stutter (commit 736c8f2), and the two are reported side by side because

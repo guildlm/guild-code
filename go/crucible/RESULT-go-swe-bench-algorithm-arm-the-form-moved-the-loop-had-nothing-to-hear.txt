@@ -1,0 +1,88 @@
+RESULT (2026-09-20, first draw of the algorithm arm) — the form moved; the loop had nothing to hear
+====================================================================================================
+Prereg: PREREG-go-swe-bench-algorithm-arm-edit-the-declaration-not-the-file.txt (commit 557f317, before
+any model call; instrument tested on the gold patches first: round-trip 51/51, loop-gold 51/51 with 0
+false alarms after two repairs of the feedback path). Harness swe_bench_loop.py + tools/decledit as
+committed there. Model qwen3-coder:30b (Ollama Q4_K_M, 32k-context variant), temp 0, seed 0, max_tokens
+6000, K = 2 repair rounds. 51-task v0 eval set. Generations, fragments, feedback and per-round verdicts:
+data/go_swe_bench_v0_loop_qwen3-coder_30b-32k.jsonl (wall 8,954 s = 2.5 h, 2.9 min/task incl. rounds).
+Report: swe_bench_loop_report.py (nothing counted by hand).
+
+(A) THE LADDER — registered:
+  r0 (edit form, single shot) = 15/51 (29.4%)   r1 = 15/51   r2 = 15/51
+  test_fail tasks 15/40 · compile_error tasks 0/11 · by before-size tertile 9/17 · 5/17 · 1/17
+  PREDICTIONS -> OUTCOMES:
+    P(r0 >= 14/51)                         = 0.55  HIT   (15)
+    P(r0 <= 11/51)                         = 0.20  not taken
+    P(loop K=2 >= r0 + 3)                  = 0.50  MISS  (+0)
+    P(loop K=2 >= 20/51)                   = 0.30  MISS  (15)
+    P(largest tertile >= 2/17 in any arm)  = 0.60  MISS  (1/17: gin, 24k chars)
+    P(compile_error >= 2/11 in the loop)   = 0.30  not taken (0/11, third arm in a row)
+    P(7B r0 > its file-level number)       = 0.55  NOT DRAWN (time; the 7B file-level took 2.9 h)
+    SILENT BRANCH did not fire: r0 moved +4, the loop 0 — the form is a lever, the loop as built is not.
+
+(B) THE FORM: 11 -> 15, A STRICT SUPERSET. Every file-level pass passes in the edit form; gained
+  bubbletea (panic at file level), gin (the 24k-char file, capped at file level, no cap needed here),
+  kratos (had returned one of two files), livekit (undefined symbol at file level). Lost none. Output
+  median 4,538 chars against the file-level's ~11k: the model writes 40% as much and passes more.
+  The size wall did not fall, it moved one rung: 0 -> 1 in the largest tertile, 7 -> 9 in the smallest.
+
+(C) THE LOOP: FIRED 15 TIMES, CONVERTED 0. Where the 36 non-passes went at r0:
+  21  toolchain SILENT (18 "ok", 3 failures already present at the parent) with the hidden test red
+      -> nothing to feed back; the loop stops. This is STRUCTURAL: a bug-fix bench selects for bugs
+         the repository's existing tests did not catch (that is why the commit added a test), so
+         "existing tests" carry no signal about the bug, and the compiler only sees form. The
+         hidden test is the only test with teeth, and it is hidden by design.
+  12  NO applicable declaration at r0 -> the loop fired on "fragment does not parse" and converted 0.
+      10 of the 12 are the model returning a HUNK (statements from inside a function: "expected
+      declaration, found 'case' / 'if' / 'for'", or a bare spec from a var group), not a declaration,
+      and 10 of the 12 open with "Looking at ..." prose. Told the fragment does not parse, it sent
+      another hunk (esbuild r1, r2). The registered form asks for declarations; this model answers
+      with diffs-in-prose about a fifth of the time, and no deterministic repair maps a bare hunk to
+      its place (that is the search/replace problem the decl form was chosen to avoid).
+   3  build error from the applied fragment -> fed back -> 0 converted: two of the three were MY tool
+      (below), the third (croc) the model fixing its compile error into a wrong fix (r2: green
+      toolchain, red hidden test — the loop declared victory on a compiler that cannot see the bug).
+
+(D) INSTRUMENT, FOUND BY THE DRAW (post-hoc, labelled): decledit appended a declaration the fragment
+  REPEATED. The model shows the buggy method, then the fixed one, under the same name; the second
+  copy landed as "method X already declared" (ddns-go, nebula — every round, so the loop was fighting
+  my tool for 3 rounds). The gold instrument test could not catch this: gold fragments never repeat a
+  name. Fixed: a key the fragment repeats resolves to its LAST copy (commit after this log; toy case
+  added). Re-applied the two r0 fragments with the fixed tool: ddns-go PASSES, nebula fails on content
+  ("missing return"). Labelled r0 = 16/51. The gold round-trip re-run with the fixed tool is recorded
+  below the findings.
+
+(E) FINAL-STATE CLASSES (51): 15 pass · 17 test failed/panic (compiles, wrong) · 12 no declaration
+  applied · 6 undefined symbol (5 of 6 are compile_error tasks: the hidden test names a symbol the
+  model never saw) · 1 redeclared (nebula, now a content failure).
+
+FINDINGS:
+  1. The edit form is worth +4 on 51 (11 -> 15, 16 labelled), a strict superset of the file-level
+     passes, at 40% of the output. "Edit the declaration, not the file" is the registered form from
+     here; file-level v0 stays as the baseline row it was.
+  2. The repair loop as built converts nothing, and the reason is not K. On 21/36 failures the
+     toolchain had nothing to say, because the bench's bugs are by construction the ones existing
+     tests miss. A loop fed by compiler + existing tests is a loop that can only fix FORM (and did
+     fix none: the model's form errors are hunks it repeats). The signal the loop needs is a test
+     that bites the bug — and the archive already measured who can write one: the router line's
+     test writer (validity 36/48, teeth 11-12/13, false alarms 20/83 on go_dev_bench). That is the
+     next arm: self-written test -> run it -> feed its failure back. Its cost is known (false alarms
+     switch a right fix into a wrong one); its value here is the only signal that exists.
+  3. The model returns hunks a fifth of the time. Deterministic repairs cannot place them; a second
+     form (search/replace with exact old text) could, but that is prompt-side work and the rule is
+     deterministic repairs first. Recorded, not acted on.
+  4. compile_error tasks are 0/11 in all three arms. When the hidden test references a symbol that
+     does not exist, no setting that hides the test can name it. These 11 are a different task
+     ("design the API the test wants") and should be reported as their own column, not folded in.
+  5. The instrument again: a tool bug with no gold counterpart (repeated names) cost 1 verdict and
+     3 wasted rounds. A known-case test covers the cases someone thought of; the draw finds the rest,
+     and the rule stays "label the repair, redo the case, re-take the gold baseline".
+
+GOLD BASELINE RE-TAKEN with the fixed decledit (swe_bench_gold_roundtrip.py, run 2): 51/51 green, 38/61 files
+byte-exact after gofmt, fragment/after 0.24 — unchanged, nebula green this time (alone on the machine).
+
+NEXT: (i) done — decledit fix committed with this log; (ii) the self-test arm on this bench —
+test writer from the router line writes a test from the commit message + files, the loop runs it,
+K rounds; prereg with the false-alarm cost stated; (iii) 7B edit-form row when a night is free;
+(iv) dataset card: algorithm-arm row (15 registered / 16 labelled) with its build.

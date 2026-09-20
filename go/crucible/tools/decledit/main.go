@@ -251,27 +251,38 @@ func apply(targetPath, fragmentPath string) int {
 	}
 	var edits []edit
 	var appends []string
-	used := map[int]bool{}
+	appendAt := map[string]int{} // key -> index in appends, so a repeated new decl is replaced too
+	used := map[int]int{}        // target start -> index in edits (+1); a key the fragment repeats: LAST WINS
 	for _, fd := range fds {
-		t := fd.appendOnly
 		var td *decl
-		if !t {
+		if !fd.appendOnly {
 			td = find(fd.key)
 		}
-		if td == nil || used[td.start] {
-			appends = append(appends, fd.standalone())
+		if td == nil {
+			// models often show the buggy version and then the fixed one under the same name
+			// (2 of 51 rows on 2026-09-20 became "already declared"); the last copy is the answer.
+			if i, ok := appendAt[fd.key]; ok && !fd.appendOnly {
+				appends[i] = fd.standalone()
+			} else {
+				appendAt[fd.key] = len(appends)
+				appends = append(appends, fd.standalone())
+			}
 			continue
 		}
-		used[td.start] = true
 		text := fd.standalone()
 		if td.grouped && !fd.unit && fd.tok != "" { // spec text only, inside the target's group
 			text = fd.doc + fd.body
 		}
+		if i := used[td.start]; i > 0 {
+			edits[i-1].text = text
+			continue
+		}
 		edits = append(edits, edit{td.start, td.end, text})
+		used[td.start] = len(edits)
 	}
 	for _, m := range deleteRE.FindAllSubmatch(fsrc, -1) {
-		if td := find(string(m[1])); td != nil && !used[td.start] {
-			used[td.start] = true
+		if td := find(string(m[1])); td != nil && used[td.start] == 0 {
+			used[td.start] = -1
 			end := td.end
 			for end < len(tsrc) && (tsrc[end] == '\n' || tsrc[end] == '\r') {
 				end++
