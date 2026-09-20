@@ -50,3 +50,4 @@ go/crucible/tools/stripdecl/stripdecl
 
 # crucible run logs (nohup output of served draws); the generations themselves are committed as data/*.jsonl
 go/crucible/logs/
+go/crucible/tools/decledit/decledit

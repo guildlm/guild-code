@@ -1,0 +1,64 @@
+PREREG (2026-09-20, before any model call in this arm) — go_swe_bench: the algorithm arm.
+"Edit the declaration, not the file."
+=========================================================================================
+WHY. The registered v0 draw (RESULT-go-swe-bench-v0-the-room-is-real-and-the-file-is-the-wall.txt) put
+qwen3-coder:30b at 11/51 file-level, and the losses were sorted by SIZE, not by the bug: 7/17 passes
+in the smallest tertile, 0/17 in the largest, passes' gold patch median 48 chars. The v0 form makes the
+model retype 20k characters to change 50. DIRECTION-2026-09-19 says the next thing to measure is the
+ALGORITHM around the model, on a bench with room. This arm measures two components of it, in one draw:
+  (1) the EDIT FORM — declaration-level edits applied by tools/decledit (go/ast: replace a top-level
+      declaration by name, add new ones, delete by directive, union imports; goimports after);
+  (2) the REPAIR LOOP — up to K rounds fed ONLY by the Go toolchain: compiler, vet, and the repository's
+      EXISTING tests of the changed packages (new failures relative to the parent). The commit's hidden
+      tests are never shown and never run inside the loop; they judge the result, as in v0.
+One draw yields a ladder: verdict after round 0 = the single-shot edit-form number; after round K = the
+loop's number. Same eval set (51 tasks, fixed fb5dfd8), same model, temp 0, seed 0, served Q4_K_M via
+the 32k-context variant, max_tokens 6000 (fragments are short; a cap hit is a finding, not a ceiling).
+
+INSTRUMENT, TESTED ON A KNOWN CASE BEFORE THIS FILE WAS COMMITTED (the rule from the router line):
+  swe_bench_gold_roundtrip.py: the gold patch of every task, turned into a fragment by `decledit
+  -changed` and applied back onto BEFORE by `decledit -apply` + goimports, must pass the hidden tests.
+  swe_bench_loop.py --model gold --rounds 0: the same fragments through the full harness path
+  (extraction, apply, toolchain feedback, hidden judge). The numbers are recorded in the RESULT log's
+  first section; a red row there is a limit of the tool, named before any model is blamed or credited.
+
+HARNESS: swe_bench_loop.py (registered as committed with this file). Prompt = commit message + the
+CURRENT content of every src file (before-content in round 0; the applied files afterwards) + the
+toolchain's report in rounds >= 1. Model returns only the declarations it changes, tagged by file.
+Deterministic repairs applied to every output: fence-stutter collapse (v0 lesson), goimports after the
+edit. No other prompt work. K = 2 repair rounds (3 calls per task at most). The loop stops early when
+the hidden tests pass (recorded — the loop itself does not see them, the harness only stops paying for
+rounds that can no longer change the ladder) or when the toolchain has nothing to report.
+
+PREDICTIONS (30B = qwen3-coder:30b-32k; the v0 file-level number is 11/51):
+  P(round-0 edit form >= 14/51)                                = 0.55   "the form was part of the wall"
+  P(round-0 edit form <= 11/51)                                = 0.20   "the form was not the wall"
+  P(loop K=2 >= round-0 + 3)                                   = 0.50   "the toolchain is a usable signal"
+  P(loop K=2 >= 20/51)                                         = 0.30
+  P(largest tertile (>= 15,977 chars) passes >= 2/17 in any arm) = 0.60   "the size wall moves"
+  P(compile_error tasks pass >= 2/11 in the loop arm)          = 0.30   (the missing symbol is named only
+                                                                         by the hidden test; the loop cannot see it)
+  P(the 7B (qwen2.5-coder:7b-32k) round-0 edit form > its file-level number) = 0.55  (drawn if time allows)
+SILENT BRANCH: round-0 within +-1 of 11 AND loop within +-1 of round-0 -> neither form nor loop is the
+  lever at this size; the wall is capability, and the next arm is retrieval/context (fewer, smaller
+  files) rather than more rounds. Recorded as such, not as "the algorithm failed".
+WHAT IS NOT CLAIMED: this is one model, one K, one edit form. A number here is a fact about
+  30B-Q4_K_M x decledit x K=2 on these 51 tasks, and it carries its build like every row since August.
+
+INSTRUMENT RESULTS (2026-09-20, all before any model call; the harness committed with this file is run 3):
+  swe_bench_gold_roundtrip.py: 50/51 green; the one red (slackhq/nebula) applied byte-identical to the
+    gold file after gofmt and passed 3/3 when re-run alone — a timing/port-sensitive test that failed
+    once under three concurrent go-test processes. Counted as 51/51 for the tool; nebula flagged as a
+    task whose verdict should be re-run before it decides anything. Fragment/after size median 0.24.
+  swe_bench_loop.py --model gold --rounds 0:
+    run 1: 51/51, but 6 rows gave the gold fix a toolchain report: 5 from the parent's STALE version of
+           the very test file the commit rewrote (vet/typecheck errors in it, or its old expectations
+           failing), 1 from `go build` refusing a test-only package.
+    run 2: deleted the stale files -> 9 NEW alarms: other tests in the package use helpers those files
+           define. Deleting was wrong.
+    run 3: stale files kept; error lines located in them and failures of the tests they define are
+           filtered out of the feedback; build = `go test -run ^$`; vet dropped. 51/51, 0 rows with
+           feedback. Registered.
+  So the loop's signal is: compiler errors outside the commit's own test files + NEW failures of the
+  existing tests the commit did not touch. It cannot invent a pass (the hidden judge is untouched); it can
+  only be silent where it used to cry wolf.
