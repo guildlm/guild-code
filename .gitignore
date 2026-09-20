@@ -47,3 +47,6 @@ go/datasets/mining/go_dapt_replay.jsonl
 go/datasets/mining/go_dapt_replay_frac25.jsonl
 go/datasets/mining/*.zip
 go/crucible/tools/stripdecl/stripdecl
+
+# crucible run logs (nohup output of served draws); the generations themselves are committed as data/*.jsonl
+go/crucible/logs/

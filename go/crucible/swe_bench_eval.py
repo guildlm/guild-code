@@ -27,6 +27,21 @@ SYSTEM = ("You are a senior Go engineer fixing a bug in a real repository. You a
 # the tag may sit as the first line INSIDE the fence (as asked) or on the line just BEFORE it (the
 # form the prompt itself uses to show the files, which models mirror); both are the same answer.
 FILE_RE = re.compile(r"(?://\s*file:\s*(\S+)\s*\n\s*)?```go\s*\n(?://\s*file:\s*(\S+)\s*\n)?(.*?)```", re.S)
+# the model sometimes opens the fence, writes the tag, and opens the fence AGAIN ("```go\n// file: x\n```go\n").
+# The registered regex then read an EMPTY body and the answer was lost (4 of 51 rows in the 30B v0 draw, all
+# scored "expected 'package', found 'EOF'"). Collapsing the stutter is a repair of this tool, not of the model;
+# added 2026-09-20 AFTER the registered v0 draw, so the v0 log carries both numbers.
+STUTTER_RE = re.compile(r"```go[ \t]*\n(//\s*file:\s*\S+[ \t]*\n)```go[ \t]*\n")
+
+
+def normalize(out):
+    return STUTTER_RE.sub(r"```go\n\1", out)
+
+
+def truncated(out):
+    """an odd number of fences after normalisation = the last file was cut (max_tokens) or abandoned"""
+    return normalize(out).count("```") % 2 == 1
+
 
 
 def ask(base_url, model, prompt, temp, max_tokens, seed):
@@ -47,6 +62,7 @@ def build_prompt(t):
 
 
 def extract_files(out, wanted):
+    out = normalize(out)
     got, untagged = {}, []
     for before, inside, body in FILE_RE.findall(out):
         path = before or inside
@@ -96,10 +112,17 @@ def main():
     ap.add_argument("--temp", type=float, default=0.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=6000)
     ap.add_argument("--save"); ap.add_argument("--load"); ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--ids", help="comma-separated task ids (repo@sha8): draw/score only these (labelled redraws)")
+    ap.add_argument("--missing-unchanged", action="store_true",
+                    help="a file the model did not return is taken as unchanged (its BEFORE content); "
+                         "v0's registered rule scored it INCOMPLETE = fail. Post-hoc for v0; a v0.1 rule.")
     a = ap.parse_args()
     tasks = [json.loads(l) for l in open(a.bench)]
     if a.limit:
         tasks = tasks[:a.limit]
+    if a.ids:
+        keep = set(a.ids.split(","))
+        tasks = [t for t in tasks if f"{t['repo']}@{t['sha'][:8]}" in keep]
     env = dict(os.environ, GOFLAGS="-mod=mod", GOTOOLCHAIN="auto", CGO_ENABLED="0")
     workroot = tempfile.mkdtemp(prefix="goswe-eval-")
     gens = {}
@@ -124,12 +147,16 @@ def main():
                 out = f"ERR {type(e).__name__}"
         files = extract_files(out, set(t["src_files"]))
         complete = len(files) == len(t["src_files"])
-        ok, tail = (score(t, files, a.cache, env, workroot) if complete else (False, "incomplete: missing files"))
+        if a.missing_unchanged and files:  # returned nothing parseable -> still a fail, not "everything unchanged"
+            for p in t["src_files"]:
+                files.setdefault(p, t["before"][p])
+        runnable = len(files) == len(t["src_files"])
+        ok, tail = (score(t, files, a.cache, env, workroot) if runnable else (False, "incomplete: missing files"))
         passed += ok
         by_status[t["parent_status"]][0] += ok; by_status[t["parent_status"]][1] += 1
         print(f"{'+' if ok else '-'} {tid:40} [{t['parent_status']}] {'' if complete else 'INCOMPLETE '}{t['subject'][:60]}", flush=True)
         row = {"id": tid, "model": a.model or gens[tid].get("model"), "verdict": ok, "complete": complete,
-               "parent_status": t["parent_status"], "output": out, "tail": tail}
+               "truncated": truncated(out), "parent_status": t["parent_status"], "output": out, "tail": tail}
         rows.append(row)
         if out_f and tid not in gens:
             out_f.write(json.dumps(row) + "\n"); out_f.flush()
@@ -137,7 +164,8 @@ def main():
     print(f"\n{a.model or 'loaded'}: pass@1 = {passed}/{n} ({100*passed/n:.0f}%)  "
           f"compile_error {by_status['compile_error'][0]}/{by_status['compile_error'][1]} · "
           f"test_fail {by_status['test_fail'][0]}/{by_status['test_fail'][1]} · "
-          f"incomplete outputs {sum(not r['complete'] for r in rows)} · wall {time.time()-t0:.0f}s", flush=True)
+          f"incomplete outputs {sum(not r['complete'] for r in rows)} · truncated outputs "
+          f"{sum(r['truncated'] for r in rows)} · wall {time.time()-t0:.0f}s", flush=True)
     if out_f:
         out_f.close()
         print(f"generations -> {a.save} ({len(rows)} rows, written as drawn)", flush=True)

@@ -1,0 +1,93 @@
+RESULT (2026-09-19/20, first draw on go_swe_bench v0) — the room is real, and the file is the wall
+==================================================================================================
+Prereg: PREREG-go-swe-bench-v0-a-bench-with-room.txt (commit 6e506e1 before mining, amendment 29d3752
+before any model call). Eval set: data/go_swe_bench_v0_eval.jsonl, 51 tasks / 51 repos, fixed by rule
+(fb5dfd8). Harness as registered: swe_bench_eval.py at 69238f1 — file-level, temp 0, seed 0, max_tokens
+6000, Ollama Q4_K_M served through the 32k-context variants (qwen3-coder:30b-32k, qwen2.5-coder:7b-32k).
+Every generation committed: data/go_swe_bench_v0_qwen3-coder_30b-32k.jsonl (51 rows, ~2.5 h wall) and
+data/go_swe_bench_v0_qwen2.5-coder_7b-32k.jsonl. The session that drew the 30B died 11 rows into the 7B;
+the 7B was resumed on 2026-09-20 from its saved rows (the harness keeps rows as drawn).
+
+(A) THE REGISTERED NUMBER — qwen3-coder:30b (Q4_K_M, served), file-level, no repair, no retry:
+  pass@1 = 11/51 (21.6%)   compile_error tasks 0/11 · test_fail tasks 11/40 · incomplete outputs 4
+  PREDICTIONS -> OUTCOMES:
+    P(30B in [20%, 60%]) = 0.65  HIT   — by ONE task: the band's lower edge is 10.2 tasks, we scored 11.
+    P(30B > 60%)         = 0.15  not taken
+    P(30B < 20%)         = 0.20  not taken (the "add failing test names, re-register" branch stays closed)
+    P(30B - 7B >= 10 pts) = 0.60  <- filled in section (E) when the 7B finishes
+  "A bench with room" is now a fact: the archive's best single model, which scores 44/48 on go_dev_bench,
+  fails 40 of 51 real bug fixes when handed the exact files. Resolution: 1 task = 2 points.
+
+(B) THE INSTRUMENT, INSPECTED BEFORE THE NUMBER WAS BELIEVED (the July rule):
+  1. FENCE STUTTER (my extractor, not the model). 11/51 outputs open the fence, write the tag, and open
+     the fence again: "```go\n// file: x\n```go\n". The registered regex read an EMPTY body for 9 of them
+     and go scored "expected 'package', found 'EOF'". swe_bench_eval.py now collapses the stutter
+     (STUTTER_RE, post-hoc, labelled in the file); swe_bench_rescore.py re-scores ONLY the rows the two
+     extractors read differently, copying every other verdict from the file.
+     -> registered 11/51, fixed-extractor STRICT 11/51. ZERO verdicts moved. All 9 emptied rows fail on
+        their content too (delve/gorilla/samber: tests red; act/urfave/vegeta: won't compile; fzf: partial).
+     The instrument was wrong on 9 rows and the number did not care. Recorded because I expected a swing
+     of up to 9 and measured 0 — "measure before you conclude" cut the other way this time.
+  2. TRUNCATION (the cap). 4/51 outputs end inside a file: esbuild, gin, rqlite, fasthttp. max_tokens
+     6000 is ~15-24k chars of Go, and esbuild's file is digit-dense (colour matrices tokenise ~1 char/
+     token), so 10k chars hit the cap. These 4 are decided by the cap, not the model. Redraw at 12000
+     below, labelled.
+  3. FEWER FILES THAN ASKED. 3/51 two-file tasks came back with one file (colima, kratos, beszel). The
+     registered rule says INCOMPLETE = fail. Under "missing file = unchanged" (--missing-unchanged, a
+     v0.1 rule) kratos PASSES: it changed the one file the fix needed. LENIENT 12/51.
+  4. COMMENTARY. 15/51 outputs start with prose ("Looking at the commit message...") despite "No
+     commentary"; harmless when a tagged block follows, fatal when the prose eats the token budget
+     (fasthttp: 8k chars of reasoning, then the file, then the cap).
+  Truncation is flagged per row now ("truncated" column); stutter is collapsed; the strict rule stays
+  the registered one. Both numbers are reported wherever one is.
+
+(C) WHERE THE 40 GO (fixed extractor; one class per row):
+  11  PASS
+  10  test: assertion failed        the fix compiles and is wrong
+   6  no-op: file returned UNCHANGED  (age, gitleaks, gorilla, iris, croc, memos) — no fix attempted
+   6  compile: undefined symbol      (fx, asdf, caddy, livekit, vegeta, urfave) — the hidden test names a
+                                     symbol the model never created, or the model dropped one
+   4  test: panic                    (bubbletea, samber, nebula, testify)
+   4  TRUNCATED by the cap           (esbuild, gin, rqlite, fasthttp)
+   3  compile: type error            (glow, chi, act)
+   3  fewer files than asked         (colima, beszel; kratos passes lenient)
+   2  compile: syntax                (delve, fzf)
+   1  compile: unused import         (gum)
+   1  test: timeout, 180 s hang      (go-micro)
+
+(D) THE WALL IS THE FILE, NOT THE BUG:
+  before-content tertile (chars)   pass     truncated
+    797 ..  5,673                  7/17      0
+  6,202 .. 14,590                  4/17      0
+ 15,977 .. 28,250                  0/17      4
+  files asked: 1 -> 10/42 · 2 -> 1/8 · 3 -> 0/1
+  gold patch size (chars of change), median: passes 48 · fails 157
+  Every pass is a small file with a small fix; nothing above 16k chars passed, whether or not the cap hit.
+  Rewriting a whole file to change 50 characters is the registered v0 form, and it is the form that
+  loses: the model must reproduce 20k chars verbatim to be allowed to change 50. compile_error tasks are
+  0/11 — when the new test references a symbol that does not exist yet, a model that cannot see the test
+  has to guess its name; that is a property of the file-level setting, not a capability gap, and the
+  test_fail-only rate 11/40 = 27.5% is the fairer "room" number for this form.
+
+(E) THE 7B ROW — qwen2.5-coder:7b (Q4_K_M, served), same harness:
+  <pending: the resumed draw is running; filled in below when it lands>
+
+FINDINGS:
+  1. The bench has room and the room is not an artefact: 11/51 registered, 11/51 after repairing my own
+     extractor on 9 rows, 12/51 lenient. Three numbers, all far from 48/48. The archive's saturation was
+     the instrument's, as DIRECTION-2026-09-19 said.
+  2. What separates pass from fail at file level is SIZE, not the difficulty of the bug: small file +
+     small patch passes, large file never. The next form must let the model EDIT rather than RETYPE —
+     a diff or search/replace form, or the agentic loop with the toolchain in it. That is the registered
+     "algorithm" arm and it gets its own prereg; v0's file-level number is its baseline.
+  3. The Go toolchain caught every failure class without a judge: 12 compile, 15 test, 1 hang, 6 no-op,
+     3 short, 4 cut. Every one is a deterministic verdict a repair loop could act on — exactly the
+     signal the Builder loop consumes and go_dev_bench no longer had.
+  4. Instrument accounting: 9 rows misread, 0 verdicts changed; 4 rows capped; 3 rows under a rule the
+     prereg never stated. A v0.1 harness (stutter collapsed, missing=unchanged, max_tokens 12000) is
+     registered for the next draw; v0's registered numbers stand as drawn.
+
+NEXT (in order): (i) 7B finishes -> section (E) and the last prediction. (ii) Labelled redraw of the 4
+truncated 30B rows (and the 7B's) at max_tokens 12000, same seed/temp. (iii) The algorithm arm on this
+bench: Builder loop with compile/test feedback, edit-form output, K repairs; prereg before the first call.
+(iv) Dataset card gets a Baselines section with the registered and lenient numbers and their build.

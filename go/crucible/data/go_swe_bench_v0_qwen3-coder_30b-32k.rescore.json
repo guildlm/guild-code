@@ -1,0 +1,461 @@
+{
+ "FiloSottile__age@366cc58c": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "lformed input: runtime error: slice bounds out of range [:-1]\nFAIL\nFAIL\tfilippo.io/age\t2.946s\n--- FAIL: TestDecodeShortDataPart (0.00s)\n    bech32_test.go:107: Decode(\"AA3100AC\\u212a\") panicked: runtime error: slice bounds out of range [:-1]\n    bech32_test.go:107: Decode(\"BK1\\u212a0JFM\") panicked: runtime error: slice bounds out of range [:-1]\nFAIL\nFAIL\tfilippo.io/age/internal/bech32\t0.313s\nFAIL\n"
+ },
+ "TecharoHQ__anubis@71147b48": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/TecharoHQ/anubis/lib/localization\t0.353s\n"
+ },
+ "abiosoft__colima@50c1e73f": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": false,
+  "note": "re-extracted lenient-filled",
+  "tail": "incomplete: missing files"
+ },
+ "antonmedv__fx@2c634b27": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/antonmedv/fx [build failed]\nFAIL\n# github.com/antonmedv/fx [github.com/antonmedv/fx.test]\n./main_test.go:36:15: undefined: newSearch\n"
+ },
+ "apache__casbin@d3e9928a": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/casbin/casbin/v3\t18.037s\n"
+ },
+ "asdf-vm__asdf@ca98e44f": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/asdf-vm/asdf/internal/shims [build failed]\nFAIL\n# github.com/asdf-vm/asdf/internal/shims [github.com/asdf-vm/asdf/internal/shims.test]\ninternal/shims/shims_test.go:392:28: undefined: reservedShimNames\ninternal/shims/shims_test.go:404:28: undefined: reservedShimNames\n"
+ },
+ "bluenviron__mediamtx@344d8c90": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/bluenviron/mediamtx/internal/externalcmd\t0.354s\n"
+ },
+ "caddyserver__caddy@a75817f5": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/caddyserver/caddy/v2/cmd [build failed]\nFAIL\n# github.com/caddyserver/caddy/v2/cmd [github.com/caddyserver/caddy/v2/cmd.test]\ncmd/packagesfuncs_test.go:57:14: undefined: moduleContainsPackage\n"
+ },
+ "charmbracelet__bubbletea@c76509a9": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "elet/bubbletea.(*Program).handleCommands.func1.1()\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/tea.go:365 +0x5c\ncreated by github.com/charmbracelet/bubbletea.(*Program).handleCommands.func1 in goroutine 1194\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/tea.go:355 +0xf4\nFAIL\nFAIL\tgithub.com/charmbracelet/bubbletea\t0.593s\nFAIL\n"
+ },
+ "charmbracelet__glow@54dd62a2": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/charmbracelet/glow/editor [build failed]\nFAIL\n# github.com/charmbracelet/glow/editor [github.com/charmbracelet/glow/editor.test]\neditor/editor_test.go:19:14: assignment mismatch: 2 variables but Cmd returns 1 value\neditor/editor_test.go:29:15: assignment mismatch: 2 variables but Cmd returns 1 value\n"
+ },
+ "charmbracelet__gum@19e79b11": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/charmbracelet/gum/confirm [build failed]\nFAIL\n# github.com/charmbracelet/gum/confirm [github.com/charmbracelet/gum/confirm.test]\nconfirm/command_test.go:48:24: sut.errIsValidTimeout undefined (type Options has no field or method errIsValidTimeout)\nconfirm/command.go:6:2: \"time\" imported and not used\n"
+ },
+ "docker__compose@95929928": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "anges were detected\n#watch: Syncing service \"test\" after 1 changes were detected\n#watch: Rebuilding service(s) [\"test\"] after changes were detected...\n#watch: service(s) [\"test\"] successfully built\n#watch: Failed to recreate services after update. Error: invalid service \"test\". Must specify either image or build\n#watch: Watch disabled\nFAIL\nFAIL\tgithub.com/docker/compose/v5/pkg/compose\t1.975s\nFAIL\n"
+ },
+ "evanw__esbuild@ab50d915": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": true,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "FAIL\tgithub.com/evanw/esbuild/internal/css_parser [setup failed]\nFAIL\n# github.com/evanw/esbuild/internal/css_parser\ninternal/css_parser/css_color_spaces.go:1:1: expected 'package', found L1\n"
+ },
+ "fatedier__frp@832df8df": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/fatedier/frp/client/health\t0.416s\n"
+ },
+ "filebrowser__filebrowser@c05c6681": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": ":74\ngithub.com/filebrowser/filebrowser/v2/cmd.addConfigFlags(0x140000a2200)\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/cmd/config.go:64 +0x4c4\ngithub.com/filebrowser/filebrowser/v2/cmd.init.8()\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/cmd/config_init.go:13 +0x50\nFAIL\tgithub.com/filebrowser/filebrowser/v2/cmd\t0.517s\nFAIL\n"
+ },
+ "gin-gonic__gin@3b08cd72": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": true,
+  "complete": false,
+  "note": "",
+  "tail": "incomplete: missing files"
+ },
+ "gitleaks__gitleaks@b6cc71aa": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/zricethezav/gitleaks/v8/detect [build failed]\nFAIL\n# github.com/zricethezav/gitleaks/v8/detect [github.com/zricethezav/gitleaks/v8/detect.test]\ndetect/baseline_test.go:151:67: too many arguments in call to IsNew\n\thave (report.Finding, uint, []report.Finding)\n\twant (report.Finding, []report.Finding)\n"
+ },
+ "go-chi__chi@aba86186": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "uter (missing method Put)\n./mux_test.go:1031:9: impossible type assertion: r.(*Mux)\n\t*Mux does not implement Router (missing method Put)\n./mux_test.go:1053:10: impossible type assertion: r.(*Mux)\n\t*Mux does not implement Router (missing method Put)\n./mux_test.go:1069:10: impossible type assertion: r.(*Mux)\n\t*Mux does not implement Router (missing method Put)\n./mux_test.go:1069:10: too many errors\n"
+ },
+ "go-delve__delve@1f83848a": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "--- FAIL: TestBinaryOp_ShrVsShra_NegativeShiftedValue (0.00s)\n    op_test.go:49: actual -4 != expected 9223372036854775804 (in DW_OP_const1s 0xf8 DW_OP_lit1 DW_OP_shr )\nFAIL\nFAIL\tgithub.com/go-delve/delve/pkg/dwarf/op\t0.299s\nFAIL\n"
+ },
+ "go-gorm__gorm@61520d74": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgorm.io/gorm/utils\t0.309s\n"
+ },
+ "go-kit__kit@0e6a1b1c": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/go-kit/kit/sd/consul\t2.339s\n"
+ },
+ "go-kratos__kratos@4ed1bedb": {
+  "registered": false,
+  "strict": false,
+  "lenient": true,
+  "truncated": false,
+  "complete": false,
+  "note": "lenient-filled",
+  "tail": "ok  \tgithub.com/go-kratos/kratos/v2/transport/http\t8.218s\n"
+ },
+ "go-playground__validator@0364541f": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "--- FAIL: TestCronExpressionValidation (0.00s)\n    validator_test.go:15192: Index: 0 cron \"0 0 12 * * ?\" failed Error: Key: '' Error:Field validation for '' failed on the 'cron' tag\nFAIL\nFAIL\tgithub.com/go-playground/validator/v10\t0.397s\nFAIL\n"
+ },
+ "gorilla__mux@976b5364": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "--- FAIL: TestMultipleDefinitionOfSamePathWithDifferentQueries (0.00s)\n    mux_test.go:2133: Should have no error. Found: no matching route was found\nFAIL\nFAIL\tgithub.com/gorilla/mux\t0.270s\nFAIL\n"
+ },
+ "helm__helm@9a3c0403": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "tcharts/chart-with-template-with-invalid-template-expr\nlevel=DEBUG msg=\"number of dependencies in the chart\" chart=chart-with-template-with-invalid-template-expr dependencies=0\nlevel=WARN msg=\"--dry-run is deprecated and should be replaced with '--dry-run=client'\"\nlevel=WARN msg=\"--dry-run is deprecated and should be replaced with '--dry-run=client'\"\nFAIL\nFAIL\thelm.sh/helm/v4/pkg/cmd\t19.257s\nFAIL\n"
+ },
+ "henrygd__beszel@6cb302fc": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": false,
+  "note": "",
+  "tail": "incomplete: missing files"
+ },
+ "iawia002__lux@179d4a95": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "--- FAIL: TestRumble (6.17s)\n    --- FAIL: TestRumble/normal_test#01 (3.33s)\n        rumble_test.go:44: no streams found in test 1\nFAIL\nFAIL\tgithub.com/iawia002/lux/extractors/rumble\t6.520s\nFAIL\n"
+ },
+ "jaegertracing__jaeger@0db69022": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/jaegertracing/jaeger/cmd/es-index-cleaner/app\t0.463s\nok  \tgithub.com/jaegertracing/jaeger/cmd/es-rollover/app\t0.468s\n"
+ },
+ "jeessy2__ddns-go@0c5178b7": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "y status changed: true -> false! Domain: test.example.com\n2026/09/20 00:41:37 Updated domain test.example.com successfully! IP: 192.0.2.1\n--- FAIL: TestCloudflareModifyProxied (0.00s)\n    --- FAIL: TestCloudflareModifyProxied/preserve_proxy_status_without_custom_parameter (0.00s)\n        cloudflare_test.go:89: request sent = true, want false\nFAIL\nFAIL\tgithub.com/jeessy2/ddns-go/v6/dns\t0.353s\nFAIL\n"
+ },
+ "jmoiron__sqlx@75a7ebf2": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/jmoiron/sqlx\t0.363s\n"
+ },
+ "julienschmidt__httprouter@34250257": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "--- FAIL: TestRedirectTrailingSlash (0.00s)\n    tree_test.go:719: want true, is false\nFAIL\nFAIL\tgithub.com/julienschmidt/httprouter\t0.360s\nFAIL\n"
+ },
+ "junegunn__fzf@224310d7": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "FAIL\tgithub.com/junegunn/fzf/src/algo [setup failed]\nFAIL\n# github.com/junegunn/fzf/src/algo\nsrc/algo/algo.go:3:1: comment not terminated\n"
+ },
+ "kataras__iris@23741e72": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/core/router/status_test.go:155\n        \tError:      \t\n        \t            \texpected status equal to:\n        \t            \t \"400 Bad Request\"\n        \t            \t\n        \t            \tbut got:\n        \t            \t \"404 Not Found\"\n        \tTest:       \tTestPartyOnErrorCode\nFAIL\nFAIL\tgithub.com/kataras/iris/v12/core/router\t0.480s\nFAIL\n"
+ },
+ "labstack__echo@df5edd91": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/labstack/echo/v5\t1.041s\n"
+ },
+ "livekit__livekit@6939fe3c": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "FAIL\tgithub.com/livekit/livekit-server/pkg/sfu/pacer [build failed]\nFAIL\n# github.com/livekit/livekit-server/pkg/sfu/pacer [github.com/livekit/livekit-server/pkg/sfu/pacer.test]\npkg/sfu/pacer/base.go:112:68: undefined: mono.UnixTime\npkg/sfu/pacer/base.go:131:70: undefined: mono.UnixTime\n"
+ },
+ "micro__go-micro@7c2d80a1": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "\n\ngoroutine 41 [chan send]:\ngo-micro.dev/v6/events.sendEvent.func1(0x1029cf2a0?)\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/events/memory.go:203 +0x230\ncreated by go-micro.dev/v6/events.sendEvent in goroutine 39\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/events/memory.go:200 +0xa8\nFAIL\tgo-micro.dev/v6/events\t180.400s\nFAIL\n"
+ },
+ "nektos__act@e374ef96": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "FAIL\tgithub.com/nektos/act/pkg/model [build failed]\nFAIL\n# github.com/nektos/act/pkg/model [github.com/nektos/act/pkg/model.test]\npkg/model/workflow.go:407:17: includeVal (variable of type []interface{}) is not an interface\npkg/model/workflow.go:444:17: excludeVal (variable of type []interface{}) is not an interface\n"
+ },
+ "projectdiscovery__katana@3978e526": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/pkg/utils/scope/scope_test.go:69\n                \tError:      \tShould be false\n                \tTest:       \tTestManagerValidate/host/rdn-boundary\n                \tMessages:   \tlook-alike domain must be out of scope for example.com: https://evilexample.com/index.php\nFAIL\nFAIL\tgithub.com/projectdiscovery/katana/pkg/utils/scope\t0.348s\nFAIL\n"
+ },
+ "router-for-me__CLIProxyAPI@cb62a674": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "idation failed |\" error=\"level \\\"max\\\" not supported, valid levels: low, medium, high\" model=claude-sonnet-4-6-model provider=claude\ntime=\"2026-09-20T01:07:16+03:00\" level=warning msg=\"thinking: validation failed |\" error=\"level \\\"xhigh\\\" not supported, valid levels: low, medium, high\" model=claude-sonnet-4-6-model provider=claude\nFAIL\nFAIL\tgithub.com/router-for-me/CLIProxyAPI/v7/test\t0.516s\nFAIL\n"
+ },
+ "rqlite__rqlite@3958e1a2": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": true,
+  "complete": false,
+  "note": "re-extracted",
+  "tail": "incomplete: missing files"
+ },
+ "samber__lo@73a8fc62": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "40001d3340)\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-rescore-bifgcaef/wt/it/find_test.go:726 +0x368\ntesting.tRunner(0x140001d3340, 0x1012fc290)\n\t/opt/homebrew/Cellar/go/1.25.3/libexec/src/testing/testing.go:1934 +0xc8\ncreated by testing.(*T).Run in goroutine 1\n\t/opt/homebrew/Cellar/go/1.25.3/libexec/src/testing/testing.go:1997 +0x364\nFAIL\tgithub.com/samber/lo/it\t0.259s\nFAIL\n"
+ },
+ "schollz__croc@129a3937": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ase_test.go:43 +0x3c\ntesting.tRunner(0x43445e37c908, 0x100ac1ae8)\n\t/Users/fatihturker/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2193 +0xc4\ncreated by testing.(*T).Run in goroutine 1\n\t/Users/fatihturker/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.27.0.darwin-arm64/src/testing/testing.go:2258 +0x3b8\nFAIL\tgithub.com/schollz/croc/v11/src/codephrase\t0.341s\nFAIL\n"
+ },
+ "sirupsen__logrus@d40e25cd": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "writer_test.go:97\n        \tError:      \t\n        \tTest:       \tTestWriterSplitsMax64KB\n        \tMessages:   \tlogger printed incorrect number of lines\n{\"level\":\"info\",\"msg\":\"Test 1\",\"time\":\"2026-09-20T01:19:50+03:00\"}\n{\"level\":\"info\",\"msg\":\"Test 2\",\"time\":\"2026-09-20T01:19:50+03:00\"}\n{\"level\":\"info\",\"msg\":\"Test 0\",\"time\":\"2026-09-20T01:19:50+03:00\"}\nFAIL\nFAIL\tgithub.com/sirupsen/logrus\t1.837s\nFAIL\n"
+ },
+ "slackhq__nebula@2a1cc620": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "oroutine 3 [select]:\ngithub.com/slackhq/nebula.(*dnsServer).Start.func2()\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/dns_server.go:184 +0x70\ncreated by github.com/slackhq/nebula.(*dnsServer).Start in goroutine 46\n\t/private/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/dns_server.go:183 +0x2c8\nFAIL\tgithub.com/slackhq/nebula\t0.439s\nFAIL\n"
+ },
+ "stretchr__testify@ce5c2b68": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "/var/folders/5g/y64w5scd1912d8fj0vs1hx7m0000gn/T/goswe-eval-hlizzs6v/wt/assert/http_assertions_test.go:37 +0x7c\ntesting.tRunner(0x140004808c0, 0x104c37110)\n\t/opt/homebrew/Cellar/go/1.25.3/libexec/src/testing/testing.go:1934 +0xc8\ncreated by testing.(*T).Run in goroutine 1\n\t/opt/homebrew/Cellar/go/1.25.3/libexec/src/testing/testing.go:1997 +0x364\nFAIL\tgithub.com/stretchr/testify/assert\t1.113s\nFAIL\n"
+ },
+ "tsenart__vegeta@1799abc7": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "FAIL\tgithub.com/tsenart/vegeta/v12/lib [build failed]\nFAIL\n# github.com/tsenart/vegeta/v12/lib [github.com/tsenart/vegeta/v12/lib.test]\nlib/attack_test.go:491:14: undefined: firstOfEachIPFamily\n"
+ },
+ "uber-go__zap@4892335e": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgo.uber.org/zap\t1.709s\n"
+ },
+ "urfave__cli@254c38ea": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "re-extracted",
+  "tail": "FAIL\tgithub.com/urfave/cli/v2 [build failed]\nFAIL\n# github.com/urfave/cli/v2 [github.com/urfave/cli/v2.test]\n./template.go:97:5: string not terminated\n./fish.go:29:37: undefined: FishCompletionTemplate\n"
+ },
+ "usememos__memos@3227748a": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "+ Actual\n                \t            \t@@ -1,2 +1,2 @@\n                \t            \t-(time.Time) 2025-01-12 00:00:00 +0000 UTC\n                \t            \t+(time.Time) 2025-01-06 00:00:00 +0000 UTC\n                \t            \t \n                \tTest:       \tTestScheduleNextCalendarDays/six_fields/Sunday_aliases_do_not_repeat\nFAIL\nFAIL\tgithub.com/usememos/memos/internal/scheduler\t20.322s\nFAIL\n"
+ },
+ "valyala__fasthttp@0e13c85e": {
+  "registered": false,
+  "strict": false,
+  "lenient": false,
+  "truncated": true,
+  "complete": false,
+  "note": "re-extracted",
+  "tail": "incomplete: missing files"
+ },
+ "zeromicro__go-zero@88dd61e2": {
+  "registered": true,
+  "strict": true,
+  "lenient": true,
+  "truncated": false,
+  "complete": true,
+  "note": "",
+  "tail": "ok  \tgithub.com/zeromicro/go-zero/core/syncx\t1.943s\n"
+ }
+}
