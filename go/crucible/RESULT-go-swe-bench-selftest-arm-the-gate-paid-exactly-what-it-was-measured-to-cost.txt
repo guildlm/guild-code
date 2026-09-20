@@ -45,11 +45,30 @@ Report: swe_bench_loop_report.py. Nothing counted by hand.
   applied (stutter, unclosed fence, stripdecl per source file, goimports, unused-variable silence);
   what remains is judgement (13 wrong expectations) and form (16 wrong artefacts), in that order.
 
-(D) THE 7B ROW AND THE ROUTER — <pending: stage 2 (7B loop, same harness) and stage 3 (STRICT router,
-  30B preferred, 7B alternate, gate = these 15 tests) run overnight in _queue_selftest_arm.sh; filled in
-  below when they land>
+(D) THE 7B ROW — qwen2.5-coder:7b-32k, same harness, same gate (wall 5,500 s = 1.5 h;
+  data/go_swe_bench_v0_loop_qwen2.5-coder_7b-32k.selftest.jsonl):
+  r0 = 9/51 · r1 = 10/51 · r2 = 10/51        by size tertile 5 · 4 · 0 (r0), 6 · 4 · 0 (final)
+  PREDICTIONS -> OUTCOMES: P(7B r0 >= 9) = 0.55 HIT (exactly its repaired file-level 9) · P(>= 12) = 0.25
+    not taken · P(7B r2 <= r0) = 0.55 MISS (+1).
+  The +1 is LUCK, and the log says on what: frp, gate FALSE ALARM (red at every round), r0 wrong, the
+  r1 rewrite under "your test still fails" happened to pass the hidden test (0-1-1). A wrong test moved
+  a wrong fix onto a right one by accident — the same shape as the router line's oracle-by-invalid-test
+  (2026-09-19). Counted as drawn, not as a method. The 7B's edit form equals its file-level number: the
+  form that gave the 30B +4 gave the 7B +0 (its no-op habit — it retypes — is form-independent).
+  UNION of final states 30B ∪ 7B = 20/51 (both 7; 7B-only filebrowser, delve, nebula). P(>= 18) = 0.55 HIT.
 
-FINDINGS (30B part):
+(E) THE ROUTER — STRICT, 30B preferred, 7B alternate, gate = the 30B's 15 kept self-tests, hidden judge
+  (swe_bench_router.py; logs/router_selftest.log): preferred alone 17 · STRICT 17 · oracle 20 ·
+  gate consulted on 15 tasks · switches 0.
+  PREDICTIONS -> OUTCOMES: P(STRICT >= preferred) = 0.60 HIT (equal) · P(> preferred) = 0.25 and
+    P(< preferred) = 0.15 not taken.
+  Why zero: on the three tasks the 7B alone solves, the writer produced NO gate — filebrowser and
+  nebula "no test" (it wrote the source file), delve "does not compile". The 15 gates it did produce
+  never met a task where the 30B was wrong and the 7B right. The router had nothing to hear either, for
+  the same reason as the loop: the writer. And the 13 false alarms cost nothing here, because STRICT only
+  moves when the alternate PASSES the same wrong test, which a wrong test rarely lets happen.
+
+FINDINGS:
   1. A test-gated repair loop on real bug fixes does what its gate's measured quality says, and nothing
      else: +1 from the one useful test on a failing task, one transient break from a false alarm on a
      passing task, zero from eleven false alarms on failing tasks. Measure the gate on the gold BEFORE
@@ -59,6 +78,10 @@ FINDINGS (30B part):
      cost. It stays the registered rule for every loop from here.
   3. The first loop conversion of the campaign came from a self-written test, not from the compiler or
      the repository's tests — the algorithm arm's "nothing to hear" was about the signal, not the loop.
+  3b. The same gate, as a router: 17 -> 17 with an oracle of 20. STRICT is safe against 13 false alarms
+     (0 bad switches) and blind on the 3 tasks it could win, because the writer wrote nothing there.
+     Loop and router fail on the same tasks for the same reason, which is the cleanest thing tonight
+     said: one component, the test writer, is now the whole distance between 17 and 20 on this bench.
   4. The lever is the writer, and its first failure is FORM (16/51 source files), the same failure the
      router line had at 42/48 and repaired deterministically there. Here the wrong artefact is a whole
      file, not a redeclaration, and no AST strip turns a fix into a test. The next deterministic step

@@ -75,7 +75,11 @@ repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <g
 
 | qwen3-coder:30b (A3B), **declaration-level edit form** (`tools/decledit`, K=2 toolchain-fed repair loop) | **15/51** (29.4%) | 16/51 (a repeated-declaration bug in the applier, fixed) | — | round 0 = 15, rounds 1–2 added 0: on 21 of the 36 failures the compiler and the existing tests had nothing to say; strict superset of the file-level passes at 40% of the output |
 
-Union of the two file-level rows: 14/51. Both fail the same way at the top of the size range: no file above ~16k chars
+| qwen3-coder:30b, edit form + **self-written test in the loop** (K=2, `--no-peek`; the 30B writes the test, never sees the fix) | **17/51** | — | — | r0 16 · r1 15 · r2 17: the gate (15 tests kept: 2 useful, 13 false alarms, measured on the gold fix before the draw) gained its one useful-on-failure task and broke one right fix for one round |
+| qwen2.5-coder:7b, same harness | 10/51 | — | — | r0 9 (= its file-level number) · +1 by a false-alarm nudge that landed |
+| **router** STRICT: 30B preferred, 7B alternate, gate = the 30B's 15 tests | 17/51 | — | — | oracle (union) 20; 0 switches: on the 3 tasks only the 7B solves the writer produced no test |
+
+Union of the two file-level rows: 14/51; of the two loop rows: 20/51. Both fail the same way at the top of the size range: no file above ~16k chars
 passed either model at the registered cap. The gold patch of a passing task is ~48 chars (median); of a
 failing one ~157. Every number carries its extractor: "registered" is the harness at commit 69238f1,
 "repaired" collapses the fence stutter (commit 736c8f2), and the two are reported side by side because
