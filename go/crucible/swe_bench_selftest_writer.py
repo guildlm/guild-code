@@ -81,6 +81,24 @@ def repair(test_src, t, tmp):
     return q.stdout if q.returncode == 0 and q.stdout.strip() else open(tpath).read()
 
 
+UNUSED_RE = re.compile(r"zz_swe_selftest_test\.go:(\d+):\d+: declared and not used: (\w+)")
+
+
+def silence_unused(test_src, out):
+    """deterministic: for every 'declared and not used: x' the compiler reports in the self-test, add `_ = x`
+    right after that line (the writer's tests set counters and flags it never asserts; stripdecl can also
+    orphan a variable by dropping the re-implemented function that used it). One pass, nothing invented."""
+    hits = UNUSED_RE.findall(out)
+    if not hits:
+        return None
+    lines = test_src.split("\n")
+    for ln, name in sorted({(int(l), n) for l, n in hits}, reverse=True):
+        if 1 <= ln <= len(lines):
+            indent = re.match(r"\s*", lines[ln - 1]).group(0)
+            lines.insert(ln, f"{indent}_ = {name}")
+    return "\n".join(lines)
+
+
 def test_names(src):
     return set(re.findall(r"^func (Test\w+)\s*\(", src, re.M))
 
@@ -136,7 +154,11 @@ def main():
     ap.add_argument("--temp", type=float, default=0.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=4000)
     ap.add_argument("--save", required=True); ap.add_argument("--ids"); ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--rescore", help="re-extract, re-repair and re-score the raw outputs of this earlier draw (no model call)")
     a = ap.parse_args()
+    prior = {}
+    if a.rescore:
+        prior = {r["id"]: r["output"] for r in (json.loads(l) for l in open(a.rescore))}
     tasks = [json.loads(l) for l in open(a.bench)]
     if a.limit:
         tasks = tasks[:a.limit]
@@ -154,7 +176,9 @@ def main():
         tid = f"{t['repo']}@{t['sha'][:8]}"
         if tid in done:
             rows.append(done[tid]); continue
-        if a.model == "hidden":  # instrument test: the commit's own test file plays the self-test (no model)
+        if tid in prior:
+            out = prior[tid]
+        elif a.model == "hidden":  # instrument test: the commit's own test file plays the self-test (no model)
             pkgdir = os.path.dirname(t["src_files"][0])
             cands = [p for p in t["tests"] if os.path.dirname(p) == pkgdir]
             out = "```go\n" + (t["tests"][cands[0]] if cands else "") + "\n```"
@@ -170,15 +194,24 @@ def main():
             test_src = repair(raw, t, tmp)
             row["test"] = test_src
             st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot)
+            if st_p == "nocompile":
+                fixed = silence_unused(test_src, out_p)
+                if fixed:
+                    test_src = fixed; row["test"] = test_src; row["unused_repaired"] = True
+                    st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot)
             row["parent"], row["parent_fails"] = st_p, sorted(f_p)
             row["kept"] = st_p == "red"
             st_g, f_g, out_g = run_selftest(t, dict(t["after"]), test_src, a.cache, env, workroot)
             row["gold"], row["gold_fails"] = st_g, sorted(f_g)
             row["parent_tail"], row["gold_tail"] = out_p[-400:], out_g[-400:]
-        verdict = ("USEFUL" if row["kept"] and row["gold"] == "green" else
+        has_tests = bool(row["test"]) and bool(test_names(row["test"]))
+        verdict = ("no-test" if not has_tests else
+                   "USEFUL" if row["kept"] and row["gold"] == "green" else
                    "FALSE-ALARM" if row["kept"] and row["gold"] in ("red", "nocompile") else
                    "toothless" if row["parent"] == "green" else
-                   "nocompile" if row["parent"] == "nocompile" else "no-test" if raw is None else row["parent"] or "?")
+                   "nocompile" if row["parent"] == "nocompile" else row["parent"] or "?")
+        if not has_tests:
+            row["kept"] = False
         row["verdict"] = verdict
         print(f"{tid:40} [{t['parent_status']}] parent={row['parent']} gold={row['gold']} -> {verdict}", flush=True)
         rows.append(row); out_f.write(json.dumps(row) + "\n"); out_f.flush()
