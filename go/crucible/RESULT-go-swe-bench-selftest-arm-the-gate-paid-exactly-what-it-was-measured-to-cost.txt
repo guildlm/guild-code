@@ -1,0 +1,68 @@
+RESULT (2026-09-20 night, first draw of the self-test arm) — the gate paid exactly what it was measured to cost
+==============================================================================================================
+Prereg: PREREG-go-swe-bench-selftest-arm-a-test-with-teeth-inside-the-loop.txt (commit 273a17c, after the
+instrument numbers and before any loop call). Harness: swe_bench_loop.py --selftests --no-peek, K = 2,
+decledit with the last-wins fix; gate = data/go_swe_bench_v0_selftests_qwen3-coder_30b-32k.rescored.jsonl
+(15 kept tests: 2 USEFUL, 13 FALSE ALARM, measured on the gold fix before the draw). Model qwen3-coder:30b
+(Ollama Q4_K_M, 32k variant), temp 0, seed 0. Every round, fragment, feedback, self-test verdict and
+hidden verdict: data/go_swe_bench_v0_loop_qwen3-coder_30b-32k.selftest.jsonl (wall 10,267 s = 2.85 h).
+Report: swe_bench_loop_report.py. Nothing counted by hand.
+
+(A) THE 30B LADDER, --no-peek (the state after each round; the loop never sees the hidden verdict):
+  r0 = 16/51 · r1 = 15/51 · r2 = 17/51
+  PREDICTIONS -> OUTCOMES:
+    P(r0 = 16)                                 = 0.70  HIT   (ddns-go now passes with the fixed applier)
+    P(r0 in [14, 17])                          = 0.90  HIT
+    P(r2 <= r0)                                = 0.55  not taken
+    P(r2 = r0 + 1)                             = 0.20  HIT   (17)
+    P(r2 >= r0 + 2)                            = 0.10  not taken
+    P(frp or go-zero flips PASS -> fail by r2) = 0.50  HIT, at r1: go-zero's right fix was broken by its
+                                                       false-alarm test in round 1 and rewritten into a
+                                                       passing one in round 2 (ladder 1-0-1). frp held.
+  Every task whose verdict changed across rounds (two of 51):
+    router-for-me/CLIProxyAPI  gate USEFUL       0-0-1  self-test red, red, GREEN; hidden fail, fail, PASS
+    zeromicro/go-zero          gate FALSE ALARM  1-0-1  self-test red at every round; hidden PASS, fail, PASS
+  The loop fired on 25/51 tasks (15 in the algorithm arm: +10 from the self-tests) and converted ONE.
+
+(B) WHAT THE GATE DID, AGAINST ITS OWN INSTRUMENT NUMBERS:
+  The prereg computed, from the writer's tests scored on the gold fix, that the loop could GAIN on
+  exactly one task (USEFUL ∧ r0-fail = CLIProxyAPI) and could BREAK two (FALSE ALARM ∧ r0-pass = frp,
+  go-zero). It gained that one. It broke one of the two for one round and got it back. Net +1, and the
+  r1 dip is the cost, visible only because --no-peek records the state after every round instead of
+  stopping at the first hidden pass (the algorithm arm's registered rule would have hidden it).
+  The 11 false alarms on tasks r0 already failed moved nothing: told "the test still fails", the model
+  rewrote a wrong fix into another wrong fix, twice, on each of them.
+
+(C) THE WRITER IS THE ARM (instrument section of the prereg, restated as the finding):
+  Asked for a test from the commit message and the buggy files, the 30B on real repositories:
+    wrote the SOURCE FILE instead of a test   16/51   (the router line's "the test writer wrote the
+                                                       function", now on real code; no repair maps it)
+    wrote a test that does not compile         12/51   (invented API; 6 more rescued by `_ = x`)
+    wrote a test green on the buggy code        8/51   (toothless)
+    wrote a test red on the buggy code         15/51   of which green on the fix 2, red on the fix 13
+  The perfect writer (the commits' own tests) keeps 32/51 under the same rule. The distance between 15
+  kept/2 useful and 32 kept/31 useful is the whole arm. Every deterministic repair the archive has was
+  applied (stutter, unclosed fence, stripdecl per source file, goimports, unused-variable silence);
+  what remains is judgement (13 wrong expectations) and form (16 wrong artefacts), in that order.
+
+(D) THE 7B ROW AND THE ROUTER — <pending: stage 2 (7B loop, same harness) and stage 3 (STRICT router,
+  30B preferred, 7B alternate, gate = these 15 tests) run overnight in _queue_selftest_arm.sh; filled in
+  below when they land>
+
+FINDINGS (30B part):
+  1. A test-gated repair loop on real bug fixes does what its gate's measured quality says, and nothing
+     else: +1 from the one useful test on a failing task, one transient break from a false alarm on a
+     passing task, zero from eleven false alarms on failing tasks. Measure the gate on the gold BEFORE
+     the draw and the draw becomes arithmetic. That is the prereg discipline paying out in full.
+  2. --no-peek is the honest rule for any loop that acts on a fallible signal. The r1 dip (16 -> 15) is
+     invisible under "stop at the first hidden pass", and it is the number that says what false alarms
+     cost. It stays the registered rule for every loop from here.
+  3. The first loop conversion of the campaign came from a self-written test, not from the compiler or
+     the repository's tests — the algorithm arm's "nothing to hear" was about the signal, not the loop.
+  4. The lever is the writer, and its first failure is FORM (16/51 source files), the same failure the
+     router line had at 42/48 and repaired deterministically there. Here the wrong artefact is a whole
+     file, not a redeclaration, and no AST strip turns a fix into a test. The next deterministic step
+     is a form check that REJECTS an output with no TestXxx and re-asks once — a retry on a
+     verifiable condition, not prompt engineering — and only then the judgement question (13 wrong
+     expectations) which is where training with a verifiable reward (red on parent AND green on gold,
+     both toolchain facts, 195 training tasks outside the eval set) finally has a reason to exist.
