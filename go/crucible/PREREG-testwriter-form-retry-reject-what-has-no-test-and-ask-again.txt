@@ -1,0 +1,81 @@
+PREREG (2026-09-21, before any model call in this arm) — go_swe_bench: the WRITER FORM-RETRY arm.
+"Reject what has no test, and ask again"
+=========================================================================================
+WHY. The self-test arm closed with one sentence worth acting on: loop and router fail on the SAME
+tasks for the SAME reason, and that reason is a single component. The 30B writer, asked for a test
+from the commit message and the buggy files, produced NO TestXxx at all on 16 of 51 tasks; the router
+is blind on exactly 3 tasks (the ones only the 7B solves) and 2 of those 3 — filebrowser, nebula —
+are in that 16. The registered next step from that result: "a form check that REJECTS an output with
+no TestXxx and re-asks once — a retry on a verifiable condition, not prompt engineering."
+
+THE CONDITION IS MACHINE-CHECKABLE AND IT IS NOT A JUDGEMENT. No `func Test` in the output is a fact
+about the artefact, the same kind of fact as "does not compile". This arm adds nothing to the prompt's
+instructions (which already say "Only TestXxx functions"); it adds a second turn that states the
+violated fact and re-asks. Same spirit as goimports and stripdecl: fix the form, never the judgement.
+
+INSTRUMENT, MEASURED BEFORE THIS FILE'S PREDICTIONS (from the saved raw outputs of the 30B draw,
+data/go_swe_bench_v0_selftests_qwen3-coder_30b-32k.rescored.jsonl, no new model call):
+  verdicts over 51: no-test 16 · FALSE-ALARM 13 · nocompile 12 · toothless 8 · USEFUL 2 · kept 15
+  All 16 no-test rows contain ZERO occurrences of "func Test" anywhere in the raw output, not merely
+    in the extracted block. The check cannot misfire on the other 35, every one of which has a TestXxx.
+    The arm therefore touches EXACTLY 16 tasks and cannot disturb the other 35. That is why it is safe
+    to re-ask only on the 16 and reuse the 35 rows unchanged; it is not a subset draw, it is the same
+    draw with a deterministic trigger.
+  What the 16 actually contain: the task's own source files, echoed back as ```go blocks.
+  8 of the 16 are CUT OFF (odd number of fences: the generation hit max_tokens 4000 mid-source).
+  8 of the 16 completed, closed their fence, and still contained no test.
+    -> two candidate causes are now visibly separable: the HABIT (write the implementation) and the
+       CEILING (run out of budget while echoing it). This arm changes neither max_tokens nor the
+       system prompt, so it measures the habit; the ceiling gets its own arm only if the habit falls.
+  Conditional on producing a test at all (the other 35 rows): kept 15/35 = 43% · USEFUL 2/35 = 5.7% ·
+    FALSE-ALARM 13/35 = 37%. This is the base rate a converted row is expected to draw from, and it is
+    the reason the honest expectation for 16 conversions is ~1 useful test and ~6 more false alarms.
+  The three router-blind tasks: filebrowser (no-test) · nebula (no-test) · delve (nocompile, outside
+    this arm). The router can only move if a converted test is KEPT on filebrowser or nebula AND the
+    7B's fix passes it.
+  Ceiling reminder: a perfect writer (the commits' own tests, --model hidden) keeps 32/51, useful 31.
+
+DESIGN (committed with this file, swe_bench_selftest_writer.py --form-retry N, default 0 = old behaviour):
+  After extraction, if the extracted block has no `func Test\w*\s*\(`, the row is a FORM FAILURE. The
+  writer then sends ONE more turn, same model, same temp 0, same seed, same max_tokens 4000, with the
+  original prompt and this exact text appended (registered verbatim, no variants tried):
+
+    "Your previous answer contained no test function. It is not usable: the package already
+     contains the implementation, and repeating it is an error. Return ONLY a Go test file:
+     a package clause, imports, and one or more `func TestXxx(t *testing.T)` functions that
+     call the existing API and fail on the buggy code above. Do not output the implementation."
+
+  The retried output goes through the identical extraction, repair and scoring path as the first. The
+  row records form_retries, the first output and the second; the FIRST output is never scored, so no
+  row can be improved by picking the better of two. One retry, not best-of-two.
+  Scoring, keep rule, isolation and the gold instrument are UNCHANGED from the self-test arm.
+  Then, only if the writer's kept set changes: re-run the ROUTER (STRICT, 30B preferred, 7B alternate,
+  hidden judge) on the SAME saved final files from the self-test arm — no new loop, no new fixes, so
+  the router row isolates the gate. The loop re-draw is a separate decision, registered after.
+
+PREDICTIONS (written before the first call of this arm; probabilities are mine, and a MISS is data):
+  Form conversion
+  P(retry yields a TestXxx on >= 8 of 16)                       = 0.60
+  P(>= 13 of 16)                                                = 0.25
+  P(0 of 16)                                                    = 0.05
+  P(the 8 CUT-OFF rows convert at a lower rate than the 8 completed rows) = 0.50
+        (if they convert equally, the ceiling is not the cause and the habit is the whole story)
+  What the conversions are worth
+  P(kept total >= 20, up from 15)                               = 0.40
+  P(at least 1 new USEFUL test)                                 = 0.45
+  P(new FALSE ALARMS > new USEFUL tests)                        = 0.80
+  P(filebrowser or nebula yields a KEPT test)                   = 0.30
+  Router (same files, new gate)
+  P(STRICT > 17)                                                = 0.20
+  P(STRICT = 17)                                                = 0.70
+  P(STRICT < 17)                                                = 0.10
+  Standing claim being tested, in one line: the writer's FORM is the whole distance between 17 and 20.
+  If conversion is high and the router does not move, that claim is FALSE and the distance is
+  JUDGEMENT, which no retry can buy and which is the case for training with a verifiable reward.
+
+WHAT WOULD MAKE ME DROP THE LEVER. Conversion >= 13/16 with zero new useful tests and STRICT = 17
+closes the deterministic-repair line on this bench: everything a machine can check would then be
+checked, and the remaining distance would be the writer's judgement about what the commit message
+means. That is the honest place for the 195 training tasks outside the eval set, not for another repair.
+
+COST. 16 writer calls plus their scoring (2 Go runs each, parent and gold); no loop; one router pass.
