@@ -82,6 +82,8 @@ repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <g
 | **router** STRICT, same files, new gate (20 tests) | 17/51 | — | — | unchanged, 0 switches. On filebrowser, the one router-blind task the retry gave a gate, that test is red on the parent, the gold fix, the 30B's wrong fix and the 7B's correct fix alike |
 | 30B writer + **one untouched neighbouring `_test.go`** from the same package at the parent commit (36/51 tasks have one) | — | — | — | **useful tests 2 → 4** (flat across the three previous arms), toothless 10 → 6, nocompile 21 → 23, kept 20 → 21; the writer stops writing tests that pass on the buggy code and starts reaching for the real API |
 | **router** STRICT, same files, exemplar gate (21 tests) | **18/51** | — | — | oracle 20. The campaign's first switch: on nebula the gate is red at the parent, green on the gold, failing on the 30B's fix and green on the 7B's — verified against all four file sets |
+| 30B writer + **compile retry** (hand the toolchain's own error lines back once; truncated outputs re-asked at 8000 tokens) | — | — | — | 5/20 non-truncated rows compile, and the rate is stratified by error class: **type errors 4/11, undefined-symbol errors 0/7**. useful 4 → 5, kept 21 → 25, nocompile 23 → 17 |
+| **router** STRICT, same files, compile-retry gate (25 tests) | 18/51 | — | — | unchanged. A compile error is two signals: a type error is information, a name error is the model's ignorance of the package handed back to it |
 
 Union of the two file-level rows: 14/51; of the two loop rows: 20/51. Both fail the same way at the top of the size range: no file above ~16k chars
 passed either model at the registered cap. The gold patch of a passing task is ~48 chars (median); of a

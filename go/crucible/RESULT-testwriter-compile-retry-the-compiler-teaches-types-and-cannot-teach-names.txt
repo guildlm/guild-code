@@ -1,0 +1,85 @@
+RESULT (2026-09-22) — go_swe_bench v0: the WRITER COMPILE-RETRY arm.
+"The compiler teaches types and cannot teach names"
+=========================================================================================
+PREREG: PREREG-testwriter-compile-retry-hand-back-the-compilers-own-words.txt (commit 7539178,
+written and committed before the first model call). Draw: 23 writer calls, qwen3-coder:30b-32k,
+temp 0, seed 0, --exemplar, --form-retry 1, Ollama Q4_K_M. The 28 rows that already compiled are
+reused BYTE-IDENTICAL. ~75 min, $0.
+
+(A) THE HEADLINE IS THE STRATIFICATION, AND IT WAS REGISTERED IN ADVANCE.
+      class            compiled after one retry
+      UNUSED VAR                 1/1
+      TYPE/SEMANTIC              4/11    36%
+      TRUNCATED (8000 tokens)    1/3
+      PARSE                      0/1
+      INVENTED SYMBOL            0/7      0%
+  P(INVENTED converts at a LOWER rate than TYPE/SEMANTIC) = 0.55 -> HIT, and the registered reason
+  is the finding itself: "undefined: X" tells the model its symbol is wrong and NOT what the right
+  one is, while a type error names the type it should have used. Zero of seven against four of
+  eleven is that sentence with a number under it.
+  A compile error is not one signal. It is two: a TYPE error is information the model can act on,
+  and a NAME error is the model's ignorance of the package reflected back at it in a machine-readable
+  coat. Feeding it back teaches nothing, because the package is what it does not know.
+
+(B) WHOLE BENCH
+      verdict        before   after
+      USEFUL              4       5      <- bubbletea, converted from nocompile
+      FALSE-ALARM        17      20
+      toothless           6       8
+      nocompile          23      17
+      KEPT               21      25
+      ROUTER STRICT      18      18      oracle 20 · gate consulted 21 -> 25 · switches 1 (nebula)
+  useful/kept 19% -> 20%. Six new gates, one of them useful.
+  delve, the only router-blind task this arm could reach, is still nocompile: its error is an
+  untyped constant 0x8000000000000000 that does not fit an int, and one retry did not fix it.
+
+(C) PREDICTIONS -> OUTCOMES
+      P(>= 10 of 20 non-truncated compile)  = 0.45  MISS (5/20)
+      P(>= 15 of 20)                        = 0.20  miss
+      P(PARSE + UNUSED VAR both compile)    = 0.60  MISS (1 of 2: echo's syntax error survived)
+      P(INVENTED < TYPE/SEMANTIC)           = 0.55  HIT   0% vs 36%
+      P(all 3 TRUNCATED at 8000 tokens)     = 0.40  MISS (1/3: two of them simply keep writing)
+      P(USEFUL > 4)                         = 0.40  HIT   (5)
+      P(new FALSE ALARMS > new USEFUL)      = 0.75  HIT   (+3 vs +1)
+  Three of seven. I over-estimated the compiler as a teacher by a factor of two (5/20 against a
+  registered 10/20), and the one prediction that carried a MECHANISM rather than a magnitude is the
+  one that hit. Registered as such: my magnitudes are worse than my mechanisms, again.
+
+(D) TRUNCATION IS NOT ONLY A CEILING. Doubling the budget to 8000 tokens converted 1 of 3. The other
+  two produced another long file and ran out again. For those rows the model is not being cut short
+  of a finish; it is writing something that has no finish. That is a different defect from the
+  no-test class, where a single sentence of feedback converted 16/16, and it says the ceiling
+  hypothesis is dead in both directions: tokens were not the cause there, and they are not the cure
+  here.
+
+(E) WHAT MY OWN TOOL COST, PAID BEFORE THE DRAW. silence_unused turned "declared and not used" into
+  "undefined" on gorilla/mux by inserting outside the variable's scope: 1 injury in 6 firings. The
+  do-no-harm guard landed first, because this arm hands the compiler's words back to the model and a
+  false error would have taught it a false thing. With the true error in front of it, gorilla/mux
+  compiled on the retry. That row is the guard's receipt.
+
+FINDINGS:
+  1. The compiler is a usable teacher for TYPES and is useless for NAMES. 4/11 against 0/7. Any future
+     loop that feeds toolchain errors to a writer should expect nothing from the undefined-symbol
+     class, and the archive should stop counting "nocompile" as one number.
+  2. The invented-symbol class is a RETRIEVAL problem, not a training problem, and the exemplar arm
+     already proved retrieval works on this writer. The indicated cheap step is to put the package's
+     actual exported symbols in front of the writer, which is the same lever that moved USEFUL from
+     2 to 4, aimed at the exact rows where it is still blind.
+  3. Across three arms today: USEFUL 2 -> 4 -> 5, ROUTER 17 -> 18 -> 18, nocompile 21 -> 23 -> 17,
+     toothless 10 -> 6 -> 8. Everything that moved USEFUL was RETRIEVAL. Everything that was a
+     deterministic repair or a retry moved the shape of the failures and not the count of the wins,
+     with one exception worth one test.
+  4. Twenty false alarms are now the largest class on the bench and no instrument in this line can
+     see them. A test red at the parent and red on the gold is indistinguishable at run time from a
+     test with teeth; only the gold separates them, and the router never has it. That is the ceiling
+     of the whole self-test idea as currently built, and it is not a writer problem.
+
+NEXT (in order):
+  a. The SYMBOL-LIST arm: give the writer the package's exported identifiers (go/doc over the parent
+     tree, deterministic, no model) and re-draw only the 7 invented-symbol rows plus the 10 rows that
+     have no exemplar. Cheap, and it tests finding 2 directly.
+  b. THEN the training arm. It is now the only remaining lever for the false-alarm class, which is
+     the largest, and its reward is still red-on-parent AND green-on-gold, both toolchain facts.
+  c. The 7B writer row with the exemplar, still owed: if access is the lever, the small model should
+     gain more from it than the large one.
