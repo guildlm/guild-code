@@ -160,9 +160,11 @@ def main():
     ap.add_argument("--temp", type=float, default=0.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=4000)
     ap.add_argument("--save", required=True); ap.add_argument("--ids"); ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--form-retry", type=int, default=0,
+    ap.add_argument("--form-retry", type=int, default=1,
                     help="if the extracted block has no TestXxx, re-ask the model this many times with "
-                         "the registered FORM_RETRY turn appended (the form-retry arm uses 1). The first "
+                         "the registered FORM_RETRY turn appended. DEFAULT 1 since 2026-09-21: the arm "
+                         "measured 16/16 conversion for one turn, so it is free and removes a whole "
+                         "failure class. Pass 0 to reproduce any draw made before that date. The first "
                          "output is never scored: one retry, not best-of-two.")
     ap.add_argument("--rescore", help="re-extract, re-repair and re-score the raw outputs of this earlier draw (no model call)")
     a = ap.parse_args()

@@ -1,0 +1,94 @@
+RESULT (2026-09-21) — go_swe_bench v0: the WRITER FORM-RETRY arm.
+"The form was free, and it bought nothing"
+=========================================================================================
+PREREG: PREREG-testwriter-form-retry-reject-what-has-no-test-and-ask-again.txt (commit 3233293,
+written and committed before the first model call). Code: swe_bench_selftest_writer.py --form-retry
+(c39608f). Draw: 16 writer calls, qwen3-coder:30b-32k, temp 0, seed 0, max_tokens 4000, Ollama Q4_K_M.
+The other 35 rows of the self-test arm are reused BYTE-IDENTICAL: the form check cannot fire on them,
+because every one already contains a TestXxx. Wall 85 min for the writer, 1 min for the router.
+
+(A) THE FORM WAS FREE. Conversion 16/16.
+  One re-ask, stating the machine-checked fact ("your previous answer contained no test function"),
+  turned every single no-test row into a row with a TestXxx. Not 8, not 13. All sixteen.
+  The registered split says which cause it was:
+      of the 8 rows CUT OFF at max_tokens while echoing the source:  8 converted
+      of the 8 rows that COMPLETED and still had no test:            8 converted
+  P(cut-off rows convert at a LOWER rate) = 0.50 -> MISS, and the miss is the finding: the token
+  ceiling was NOT a cause. The habit was, and one sentence of feedback beats it completely. The
+  ceiling arm that was waiting behind this one is cancelled before it was registered.
+
+(B) AND IT BOUGHT NOTHING.
+                    before   after
+      USEFUL             2       2        <- the number that matters did not move
+      FALSE-ALARM       13      18
+      toothless          8      10
+      nocompile         12      21
+      no-test           16       0
+      KEPT              15      20
+  ROUTER (STRICT, 30B preferred, 7B alternate, same final files, hidden judge, only the gate changed):
+      preferred alone 17 · STRICT 17 · oracle 20 · gate consulted 15 -> 20 · switches 0
+  PREDICTIONS -> OUTCOMES:
+      P(TestXxx on >= 8 of 16)      = 0.60  HIT      P(kept >= 20)                 = 0.40  HIT
+      P(>= 13 of 16)                = 0.25  HIT      P(>= 1 new USEFUL)            = 0.45  MISS
+      P(0 of 16)                    = 0.05  miss     P(new FALSE ALARMS > useful)  = 0.80  HIT
+      P(filebrowser or nebula KEPT) = 0.30  HIT      P(cut-off convert lower)      = 0.50  MISS
+      P(STRICT > 17) = 0.20 miss · P(STRICT = 17) = 0.70 HIT · P(STRICT < 17) = 0.10 miss
+
+(C) THE FORCED ARTEFACT IS WORSE THAN THE WILLING ONE.
+  The 16 conversions were scored against the base rate registered from the other 35 rows:
+      verdict        expected from base rate   actual
+      nocompile                          5.5        9
+      FALSE-ALARM                        5.9        5
+      toothless                          3.7        2
+      USEFUL                             0.9        0
+  The converted rows are not a random sample of the writer's work; they are its worst. The tasks
+  where it defaulted to echoing the source are the tasks where it had the least grip on the package's
+  API, and forcing the form converts that silence into compile errors (12 -> 21 nocompile, +9).
+  The form check did not create competence. It made the incompetence legible.
+
+(D) THE ONE GATE THE ARM BOUGHT ON A ROUTER-BLIND TASK REJECTS THE RIGHT FIX.
+  filebrowser is one of the 3 tasks only the 7B solves, and the only one this arm gave a gate. Its
+  new self-test was run against all four file sets:
+      parent (buggy)        red      <- kept by the keep rule: teeth for this bug
+      gold fix              red      <- FALSE ALARM: it is simply wrong about the spec
+      30B final (wrong)     red
+      7B final (right)      red      <- it rejects the correct fix exactly as hard
+  It discriminates nothing, so STRICT correctly refused to move, and the router's one available
+  point stayed on the table. This is the whole false-alarm class in one row, and it exposes the
+  limit of the keep rule itself: RED AT PARENT IS NECESSARY AND NOT SUFFICIENT, and without the gold
+  — which the router by construction never has — nothing at run time can tell a test with teeth from
+  a test that is merely wrong. Gate quality, useful/kept: 13% before, 10% after. A perfect writer
+  (the commits' own tests) is 31/32 = 97%.
+
+(E) THE REGISTERED FALSIFICATION FIRED.
+  The prereg said, in advance: "If conversion is high and the router does not move, that claim [the
+  writer's FORM is the whole distance between 17 and 20] is FALSE and the distance is JUDGEMENT."
+  Conversion was maximal, 16/16. The router did not move. The claim is dead, and it was my claim,
+  written into the self-test arm's finding 4 the night before. The distance between 17 and 20 is
+  what the writer BELIEVES the commit message means, and no retry, strip, import fix or form check
+  can buy that.
+
+FINDINGS:
+  1. A deterministic retry on a machine-checkable form condition is the cheapest repair in the
+     archive and it is total: 16/16, one turn, no prompt engineering, no best-of-two. When the
+     condition is a fact about the artefact, the model fixes it on being told. That is worth keeping
+     in the pipeline whatever it buys, because it costs one call and removes a whole failure class.
+  2. It bought zero useful tests and five false alarms. Quantity of gates up 33%, quality down.
+     Every repair this line has shipped (fence stutter, unclosed fence, stripdecl, goimports, unused
+     silencing, and now the form check) fixes the ARTEFACT; none of them can fix what the artefact
+     ASSERTS. The deterministic-repair line on this bench is CLOSED: everything a machine can check
+     is now checked.
+  3. The keep rule is the next thing to doubt, not the writer's form. Red-at-parent keeps a test that
+     is red at parent, on gold, and on every candidate. 18 of 20 kept gates are of that kind. Any
+     rule that could tell them apart needs a second observation the router does not have.
+  4. The remaining distance is judgement, and judgement has a verifiable reward: RED ON PARENT AND
+     GREEN ON GOLD are both toolchain facts, needing no LLM judge, and there are 195 mined tasks
+     outside the eval set to train on. That is the first time on this campaign that training is the
+     indicated next step rather than a nicer algorithm — earned by eliminating every alternative.
+
+NEXT (in order):
+  a. Keep --form-retry 1 in the writer's default pipeline. It is free and it removes a failure class.
+  b. Do NOT run the ceiling arm (max_tokens): (A) killed its premise before it was registered.
+  c. Register the writer-training arm: reward = self-test red on parent AND green on gold, measured
+     by the toolchain, on the 195 training tasks; evaluate by useful/kept on these 51, which is the
+     number every arm since the 19th has failed to move (2 · 2 · 2).
