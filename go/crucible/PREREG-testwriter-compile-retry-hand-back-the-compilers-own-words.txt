@@ -1,0 +1,76 @@
+PREREG (2026-09-21, before any model call in this arm) — go_swe_bench v0: the WRITER COMPILE-RETRY arm.
+"Hand back the compiler's own words"
+=========================================================================================
+WHY. The exemplar arm moved the writer from vacuous to ambitious: toothless halved, USEFUL doubled
+2 -> 4, the router took its first switch. The failure it left behind is LOUD — 23 self-tests that do
+not compile at the parent, up from 21 — and loud is the kind this line can act on. The form retry
+converted 16/16 on a machine-checked condition. "Does not compile" is the same kind of condition,
+with a strictly better message available: the toolchain's own errors.
+
+INSTRUMENT, MEASURED BEFORE THE PREDICTIONS (corrected classification of the 23, from parent_tail):
+      TYPE/SEMANTIC    11   real API, misused (wrong field, wrong arity, wrong operand type)
+      INVENTED SYMBOL   7   names something that does not exist (incl. beszel, whose invented
+                            internal import surfaces as a module-resolution error, not a type error)
+      TRUNCATED         3   livekit, go-playground/validator, stretchr/testify — the generation was
+                            CUT OFF at max_tokens 4000; their "parse errors" are the truncation, not
+                            the model's syntax. A compiler message cannot help these; tokens can.
+      PARSE             1   labstack/echo, a genuine syntax error in a complete output
+      UNUSED VAR        1   gorilla/mux, "declared and not used"
+  Note on scope: the form-retry arm concluded the token ceiling was not a cause. That conclusion was
+  about the NO-TEST class and it stands. For the NOCOMPILE class the ceiling IS a cause, for 3 rows.
+  Re-measured per class, as the archive's rule requires.
+
+INSTRUMENT REPAIR MADE BEFORE THIS ARM (labelled, committed with this file). silence_unused inserts
+  `_ = x` after the line the compiler names. On gorilla/mux the insertion landed outside the
+  variable's scope and turned "declared and not used: route1" into "undefined: route1" — my own tool
+  made the file worse, 1 injury in 6 firings. A DO-NO-HARM guard now re-runs after the insertion and
+  reverts it if any silenced name comes back "undefined". gorilla/mux was re-scored from its saved
+  output with no model call: still nocompile, but its error is now TRUE. This arm depends entirely on
+  the error message being true, so the guard had to land first.
+
+DESIGN (swe_bench_selftest_writer.py --compile-retry, off by default). When the self-test does not
+compile at the parent after all existing repairs, ONE more turn, same model/temp/seed. Two branches,
+on a condition decided before the call and recorded per row:
+  (i) the first output was TRUNCATED (odd fence count): re-ask the ORIGINAL prompt with
+      max_tokens 8000 and this exact line appended —
+        "Your previous answer was cut off before the file was complete. Return the whole test file."
+  (ii) otherwise: re-ask the original prompt with max_tokens 4000 and the toolchain's own report —
+        "The test file you wrote does not compile against the code above. The Go toolchain reports:
+         <the zz_swe_selftest_test.go error lines, verbatim, at most 1500 chars>
+         Fix these. Use only symbols that exist in the files above. Return the complete test file."
+  The two groups are DISJOINT and PRE-DECLARED (3 vs 20), so this is two registered sub-arms in one
+  draw, not one arm with two variables. The rejected output is never scored. One retry, not best-of-two.
+  Everything else is unchanged: --exemplar on, --form-retry 1, same repairs, keep rule, isolation,
+  gold instrument, hidden judge. The 28 rows that already compile are reused BYTE-IDENTICAL.
+
+BASELINE (whole bench, after the exemplar arm):
+      USEFUL 4 · FALSE-ALARM 17 · toothless 6 · nocompile 23 · KEPT 21 · ROUTER STRICT 18, oracle 20
+  Of the three router-blind tasks, DELVE is in the nocompile set (TYPE/SEMANTIC) and is the only one
+  this arm can reach; nebula is already won, filebrowser is a false alarm and out of scope.
+  Conditional base rate on kept gates after the exemplar arm: 4 useful / 21 kept = 19%.
+
+PREDICTIONS (written before the first call of this arm):
+  P(>= 10 of the 20 non-truncated rows compile after the retry)   = 0.45
+  P(>= 15 of 20)                                                  = 0.20
+  P(the PARSE + UNUSED VAR pair both compile)                     = 0.60
+  P(INVENTED SYMBOL converts at a LOWER rate than TYPE/SEMANTIC)  = 0.55
+        reasoning registered: "undefined: X" tells the model its symbol is wrong and not what the
+        right one is, while a type error names the type it should have used. If this is wrong, the
+        compiler is a better teacher than I think and the judgement gap is smaller than I think.
+  P(all 3 TRUNCATED rows compile at 8000 tokens)                  = 0.40
+  P(USEFUL on the bench rises above 4)                            = 0.40
+  P(new FALSE ALARMS > new USEFUL)                                = 0.75
+  P(router STRICT > 18)                                           = 0.15   (only delve can move it)
+  P(router STRICT < 18)                                           = 0.05
+  The primary number remains USEFUL. It was 2 · 2 · 2, then 4.
+
+WHAT EACH OUTCOME MEANS, WRITTEN NOW:
+  compiles rise AND useful rises   -> the compiler is a usable teacher for the writer; fold the retry
+                                      into the pipeline and the remaining gap is narrower than feared.
+  compiles rise AND useful flat    -> the writer can be made to SPEAK the API by a machine and still
+                                      does not know what the commit means. That is the cleanest case
+                                      for training the campaign can produce, and the last one available.
+  compiles do not rise             -> a compile error is judgement wearing a machine-readable coat;
+                                      go to training with the nocompile class named as the target.
+
+COST. Up to 23 writer calls (28 rows reused), ~70 min, $0, one router pass.

@@ -85,6 +85,24 @@ def exemplar_for(t, cache):
     return path, src
 
 
+COMPILE_RETRY = ("The test file you wrote does not compile against the code above. The Go toolchain reports:\n"
+                 "{errors}\n"
+                 "Fix these. Use only symbols that exist in the files above. Return the complete test file.")
+TRUNCATED_RETRY = "Your previous answer was cut off before the file was complete. Return the whole test file."
+
+
+def compiler_errors(out, limit=1500):
+    """the self-test's own error lines, verbatim, as the toolchain printed them"""
+    lines = [l for l in out.splitlines()
+             if (SELFTEST_NAME in l and re.search(r"\.go:\d+:\d+:", l)) or "no matching versions" in l]
+    return "\n".join(lines)[:limit]
+
+
+def was_truncated(out):
+    """a generation cut off at max_tokens leaves an odd number of fences"""
+    return out.count("```") % 2 == 1
+
+
 def pkg_of(src):
     m = re.search(r"^package\s+(\w+)", src, re.M)
     return m.group(1) if m else "main"
@@ -210,6 +228,11 @@ def main():
                          "only change in the campaign to move USEFUL (2 -> 4) and it bought the router "
                          "its first switch. Pass this to reproduce any draw made before that date.")
     ap.set_defaults(exemplar=True)
+    ap.add_argument("--compile-retry", action="store_true",
+                    help="when the self-test does not compile at the parent, re-ask ONCE: with the "
+                         "toolchain's own error lines, or -- if the first output was cut off -- with the "
+                         "original prompt at 8000 tokens. Registered in "
+                         "PREREG-testwriter-compile-retry-hand-back-the-compilers-own-words.txt.")
     ap.add_argument("--form-retry", type=int, default=1,
                     help="if the extracted block has no TestXxx, re-ask the model this many times with "
                          "the registered FORM_RETRY turn appended. DEFAULT 1 since 2026-09-21: the arm "
@@ -278,8 +301,42 @@ def main():
             if st_p == "nocompile":
                 fixed = silence_unused(test_src, out_p)
                 if fixed:
-                    test_src = fixed; row["test"] = test_src; row["unused_repaired"] = True
+                    silenced = {n for _, n in UNUSED_RE.findall(out_p)}
+                    st2, f2, out2 = run_selftest(t, dict(t["before"]), fixed, a.cache, env, workroot)
+                    # DO NO HARM (2026-09-21): the insertion can land outside the variable's scope and
+                    # turn "declared and not used: x" into "undefined: x", which is worse than the
+                    # error it was fixing. Measured on gorilla/mux: 1 injury in 6 firings. Keep the
+                    # repair only when it introduces no new undefined among the names it silenced.
+                    if silenced & set(re.findall(r"undefined: (\w+)", out2)):
+                        row["unused_repair_reverted"] = True
+                    else:
+                        test_src = fixed; row["test"] = test_src; row["unused_repaired"] = True
+                        st_p, f_p, out_p = st2, f2, out2
+            # COMPILE RETRY (registered): the condition is the toolchain's, and so is the message.
+            if (a.compile_retry and st_p == "nocompile" and not (a.rescore or a.model == "hidden")):
+                cut = was_truncated(out)
+                extra = TRUNCATED_RETRY if cut else COMPILE_RETRY.format(errors=compiler_errors(out_p))
+                row["compile_retry"] = "tokens" if cut else "errors"
+                row["compile_rejected"] = out
+                print(f"{tid:40} does not compile -> re-asking ({row['compile_retry']})", flush=True)
+                try:
+                    out = h.ask(a.base_url, a.model, build_prompt(t, ex) + "\n\n" + extra, a.temp,
+                                8000 if cut else a.max_tokens, a.seed)
+                except Exception as e:  # noqa: BLE001
+                    out = f"ERR {type(e).__name__}"
+                raw2 = extract_test(out)
+                if raw2 and test_names(raw2):
+                    test_src = repair(raw2, t, tmp); row["test"] = test_src
                     st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot)
+                    if st_p == "nocompile":
+                        fixed = silence_unused(test_src, out_p)
+                        if fixed:
+                            silenced = {n for _, n in UNUSED_RE.findall(out_p)}
+                            st2, f2, out2 = run_selftest(t, dict(t["before"]), fixed, a.cache, env, workroot)
+                            if not (silenced & set(re.findall(r"undefined: (\w+)", out2))):
+                                test_src = fixed; row["test"] = test_src; row["unused_repaired"] = True
+                                st_p, f_p, out_p = st2, f2, out2
+                row["output"] = out
             row["parent"], row["parent_fails"] = st_p, sorted(f_p)
             row["kept"] = st_p == "red"
             st_g, f_g, out_g = run_selftest(t, dict(t["after"]), test_src, a.cache, env, workroot)
