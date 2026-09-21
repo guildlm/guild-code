@@ -38,6 +38,12 @@ SYSTEM = ("You are a senior Go engineer. You are given a commit message describi
           "test file in ONE ```go block that starts with the package clause. No commentary.")
 
 
+FORM_RETRY = ("Your previous answer contained no test function. It is not usable: the package already "
+              "contains the implementation, and repeating it is an error. Return ONLY a Go test file: "
+              "a package clause, imports, and one or more `func TestXxx(t *testing.T)` functions that "
+              "call the existing API and fail on the buggy code above. Do not output the implementation.")
+
+
 def pkg_of(src):
     m = re.search(r"^package\s+(\w+)", src, re.M)
     return m.group(1) if m else "main"
@@ -154,6 +160,10 @@ def main():
     ap.add_argument("--temp", type=float, default=0.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=4000)
     ap.add_argument("--save", required=True); ap.add_argument("--ids"); ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--form-retry", type=int, default=0,
+                    help="if the extracted block has no TestXxx, re-ask the model this many times with "
+                         "the registered FORM_RETRY turn appended (the form-retry arm uses 1). The first "
+                         "output is never scored: one retry, not best-of-two.")
     ap.add_argument("--rescore", help="re-extract, re-repair and re-score the raw outputs of this earlier draw (no model call)")
     a = ap.parse_args()
     prior = {}
@@ -188,8 +198,22 @@ def main():
             except Exception as e:  # noqa: BLE001
                 out = f"ERR {type(e).__name__}"
         raw = extract_test(out)
+        # FORM CHECK (registered, deterministic): an output with no TestXxx is rejected and re-asked.
+        # The rejected output is never scored -- one retry, not best-of-two.
+        form_hist, tries = [], 0
+        while (a.form_retry and tries < a.form_retry and not (a.rescore or a.model == "hidden")
+               and (raw is None or not test_names(raw))):
+            form_hist.append(out)
+            tries += 1
+            print(f"{tid:40} form failure (no TestXxx) -> re-asking {tries}/{a.form_retry}", flush=True)
+            try:
+                out = h.ask(a.base_url, a.model, build_prompt(t) + "\n\n" + FORM_RETRY, a.temp, a.max_tokens, a.seed)
+            except Exception as e:  # noqa: BLE001
+                out = f"ERR {type(e).__name__}"
+            raw = extract_test(out)
         row = {"id": tid, "model": a.model, "parent_status": t["parent_status"], "output": out, "test": None,
-               "parent": None, "gold": None, "parent_fails": [], "gold_fails": [], "kept": False}
+               "parent": None, "gold": None, "parent_fails": [], "gold_fails": [], "kept": False,
+               "form_retries": tries, "form_rejected": form_hist}
         if raw:
             test_src = repair(raw, t, tmp)
             row["test"] = test_src
