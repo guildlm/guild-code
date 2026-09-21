@@ -1,0 +1,101 @@
+RESULT (2026-09-21) — go_swe_bench v0: the WRITER EXEMPLAR arm.
+"A neighbour was worth two tests and the campaign's first switch"
+=========================================================================================
+PREREG: PREREG-testwriter-exemplar-show-it-a-neighbour.txt (commit cd2664f, written and committed
+before the first model call). Draw: 36 writer calls, qwen3-coder:30b-32k, temp 0, seed 0,
+max_tokens 4000, --form-retry 1, Ollama Q4_K_M, 84 min. The 15 tasks with no untouched sibling test
+in their package are reused BYTE-IDENTICAL as controls. $0.
+
+THE QUESTION. Is the writer's judgement failure a SKILL problem or a KNOWLEDGE-ACCESS problem? It
+was asked because 16 of its 21 non-compiling self-tests failed on the package's API, not on the bug,
+and the writer had never been shown how anyone calls that package. The arm gives it one untouched
+neighbouring _test.go from the same directory at the parent commit, and nothing else.
+
+ANSWER: PARTLY ACCESS, and the part that was access was worth more than three arms of repair.
+
+(A) THE NUMBER THAT HAD NOT MOVED, MOVED.
+  On the 36 tasks with an exemplar:      no exemplar    with exemplar
+      USEFUL                                       2                4
+      FALSE-ALARM                                 10                9
+      toothless                                    8                4
+      nocompile                                   16               18
+      KEPT                                        12               13
+      useful/kept                                17%              31%
+  Whole bench: USEFUL 2 -> 4 · FALSE-ALARM 18 -> 17 · toothless 10 -> 6 · nocompile 21 -> 23 ·
+               KEPT 20 -> 21.
+  USEFUL had been 2 · 2 · 2 across the self-test, form-retry and router arms. One neighbouring file
+  doubled it, for 84 minutes and no money.
+
+(B) AND THE ROUTER MOVED FOR THE FIRST TIME IN THE CAMPAIGN.
+      preferred alone 17 · STRICT 18 · oracle 20 · gate consulted 21 · switches 1: nebula, GOOD
+  The switch was verified independently of the router, by running the nebula gate against all four
+  file sets:
+      parent (buggy)        red        <- teeth for this bug
+      gold fix              green      <- USEFUL: it is right about the spec
+      30B final (wrong)     error      <- the preferred candidate does not pass it
+      7B  final (right)     green      <- the alternate does
+  This is the exact shape the router was built for, and it is the first time the shape has occurred.
+  Compare the same table for filebrowser one arm ago, where the gate was red on all four: that is
+  the difference between a test with teeth and a test that is merely wrong, and nothing in the keep
+  rule can tell them apart — only the gold can, and only after the fact.
+  Registered P(STRICT > 17) = 0.10. HIT at 0.10, and the under-confidence is data: I priced it low
+  because only 1 of the 3 router-blind tasks had an exemplar, and that 1 is exactly what fired.
+
+(C) THE OUTCOME MATCHED NONE OF THE FOUR SCENARIOS I REGISTERED.
+  The prereg wrote out four readings in advance so none could be chosen afterwards. It got the
+  direction of two variables wrong at once: nocompile ROSE (16 -> 18) where I predicted a fall at
+  0.70, and toothless FELL (8 -> 4) where I registered a rise at 0.45 as the arm's own risk.
+  Together they are one mechanism, and it is not in the matrix:
+      THE EXEMPLAR MOVED THE WRITER FROM VACUOUS TO AMBITIOUS.
+  Shown how the package is really exercised, it stopped writing tests that pass on the buggy code
+  (toothless halved) and started reaching for the real API. Reaching sometimes lands — two new
+  useful tests, one of them the router's point — and sometimes does not compile. The failure mode
+  did not shrink; it MOVED, from a silent one to a loud one. That trade is worth taking, because a
+  test that passes on the buggy code tells the loop nothing and cannot be detected without the gold,
+  while a test that does not compile is a machine-checkable condition with a retry available.
+  Every row whose verdict changed is listed in logs/exemplar_report.txt; 15 of 36 moved, in both
+  directions, which is the honest picture of a prompt change on a 30B at temp 0.
+
+(D) PREDICTIONS -> OUTCOMES
+      P(nocompile < 16)        = 0.70  MISS      P(USEFUL < 2)            = 0.15  miss
+      P(nocompile <= 10)       = 0.35  MISS      P(KEPT > 12)             = 0.60  HIT
+      P(USEFUL >= 3)           = 0.45  HIT       P(useful/kept > 17%)     = 0.35  HIT
+      P(USEFUL >= 5)           = 0.20  miss      P(toothless > 8)         = 0.45  MISS
+      P(router STRICT > 17)    = 0.10  HIT
+  Four of nine, and the two clean misses are the finding. I was wrong about WHICH way the writer
+  would fail and right that it would produce something. Recorded as such.
+
+(E) WHAT IS HONESTLY SMALL HERE. Four useful tests out of 51 against a perfect writer's 31. One
+  router point out of a three-point oracle gap. A single switch is a single switch, and the only
+  reason it is not noise is that its mechanism was verified task by task before it was claimed. The
+  claim of this arm is a direction, not a victory.
+
+FINDINGS:
+  1. Retrieval beat repair on this bench, by the only measure that matters. Six deterministic
+     repairs across three arms moved USEFUL from 2 to 2. One untouched neighbouring test file moved
+     it from 2 to 4 and bought the router its first switch. The cheapest algorithm component the
+     archive has, and it had never been pointed at the test writer.
+  2. The writer's judgement failure is partly a knowledge-access failure, and access is free. It
+     was never ignorance of testing; it was ignorance of THIS package, which is exactly the blindness
+     the direction note of 2026-09-19 said a specialist should be trained for and a prompt can
+     sometimes reach first.
+  3. Toothless is the failure class that matters most and it is invisible to every run-time
+     instrument. A test green on the buggy code is silent: it cannot be caught by the compiler, by
+     the keep rule, or by the loop, only by the gold, which the router never has. Halving it is the
+     quietest number in the table and possibly the most valuable.
+  4. The wall is now 23 nocompile rows, and unlike toothless it is LOUD. The classification is
+     already measured: 5 parse errors, 8 invented symbols, 8 misuses of a real API. A compile-retry
+     that feeds the toolchain's own message back once is the same shape as the form retry that
+     converted 16/16, and it is the next arm, ahead of training.
+
+NEXT (in order):
+  a. Build --exemplar into the writer's default pipeline. It is free and it is the only change in
+     the campaign to move USEFUL.
+  b. Register the COMPILE-RETRY arm: on a self-test that does not compile at the parent, re-ask once
+     with the compiler's own errors. Instrument already measured (5 parse / 8 undefined / 8 type).
+     Predict honestly: the parse class should convert like the form class did; the invented-symbol
+     class is judgement wearing a compiler error, and the exemplar has just moved some of it.
+  c. THEN the training arm, with a target this arm has sharpened: whatever survives (a) and (b) is
+     skill, not access, and reward = red on parent AND green on gold remains the right signal.
+  d. Re-draw the 7B writer row with the exemplar: if access is the lever, the small model should
+     gain more from it than the large one, and that is a cheap, falsifiable claim about the whole bet.

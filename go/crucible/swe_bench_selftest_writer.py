@@ -204,9 +204,12 @@ def main():
     ap.add_argument("--temp", type=float, default=0.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=4000)
     ap.add_argument("--save", required=True); ap.add_argument("--ids"); ap.add_argument("--limit", type=int, default=0)
-    ap.add_argument("--exemplar", action="store_true",
-                    help="show the writer one untouched sibling _test.go from the same package at the "
-                         "parent commit (the exemplar arm's registered selection rule). Off by default.")
+    ap.add_argument("--no-exemplar", dest="exemplar", action="store_false",
+                    help="do NOT show the writer an untouched sibling _test.go from the same package at "
+                         "the parent commit. The exemplar is ON by default since 2026-09-21: it is the "
+                         "only change in the campaign to move USEFUL (2 -> 4) and it bought the router "
+                         "its first switch. Pass this to reproduce any draw made before that date.")
+    ap.set_defaults(exemplar=True)
     ap.add_argument("--form-retry", type=int, default=1,
                     help="if the extracted block has no TestXxx, re-ask the model this many times with "
                          "the registered FORM_RETRY turn appended. DEFAULT 1 since 2026-09-21: the arm "

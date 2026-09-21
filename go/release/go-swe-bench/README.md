@@ -80,6 +80,8 @@ repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <g
 | **router** STRICT: 30B preferred, 7B alternate, gate = the 30B's 15 tests | 17/51 | — | — | oracle (union) 20; 0 switches: on the 3 tasks only the 7B solves the writer produced no test |
 | 30B writer + **deterministic form retry** (reject an output with no `TestXxx`, re-ask once) | — | — | — | form fixed 16/16 in one turn, including all 8 that had been cut off at the token cap; useful tests 2 → 2, kept 15 → 20, false alarms 13 → 18, nocompile 12 → 21 |
 | **router** STRICT, same files, new gate (20 tests) | 17/51 | — | — | unchanged, 0 switches. On filebrowser, the one router-blind task the retry gave a gate, that test is red on the parent, the gold fix, the 30B's wrong fix and the 7B's correct fix alike |
+| 30B writer + **one untouched neighbouring `_test.go`** from the same package at the parent commit (36/51 tasks have one) | — | — | — | **useful tests 2 → 4** (flat across the three previous arms), toothless 10 → 6, nocompile 21 → 23, kept 20 → 21; the writer stops writing tests that pass on the buggy code and starts reaching for the real API |
+| **router** STRICT, same files, exemplar gate (21 tests) | **18/51** | — | — | oracle 20. The campaign's first switch: on nebula the gate is red at the parent, green on the gold, failing on the 30B's fix and green on the 7B's — verified against all four file sets |
 
 Union of the two file-level rows: 14/51; of the two loop rows: 20/51. Both fail the same way at the top of the size range: no file above ~16k chars
 passed either model at the registered cap. The gold patch of a passing task is ~48 chars (median); of a
