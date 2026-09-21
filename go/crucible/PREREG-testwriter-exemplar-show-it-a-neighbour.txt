@@ -1,0 +1,73 @@
+PREREG (2026-09-21, before any model call in this arm) — go_swe_bench v0: the WRITER EXEMPLAR arm.
+"Show it a neighbour"
+=========================================================================================
+WHY, AND WHY THIS BEFORE THE TRAINING ARM. The form-retry arm closed the deterministic-repair line
+and its own registered falsification fired: the writer's FORM is not the distance between 17 and 20,
+JUDGEMENT is. The indicated next step in that result is training with a verifiable reward. Before
+spending it, one question decides what training would even have to learn:
+
+    is the writer's judgement failure a SKILL problem or a KNOWLEDGE-ACCESS problem?
+
+It is asked this way because of what the failures are. Of the 21 self-tests that do not compile,
+8 name a symbol that does not exist (invented API) and 8 misuse a real one; that is 16 of 21 failing
+on the package's API rather than on the bug. The writer is shown the commit message and the buggy
+source. It is never shown how anyone actually calls this package. A developer opening the same
+directory would read a neighbouring test first. This arm gives it that, and nothing else.
+
+If the exemplar moves the numbers, the gap is access and RLVR is aimed at the wrong thing. If it does
+not, the gap is skill, training is the right tool, and this arm has cost 90 minutes and no money.
+
+NO LEAK, STATED PLAINLY. The exemplar is read at the PARENT commit and is never a file the fix commit
+touches (t["tests"] is excluded by path). It therefore cannot contain the bug, the fix, or the hidden
+test. It is the same material a developer has before the bug is fixed.
+
+DESIGN (committed with this file, swe_bench_selftest_writer.py --exemplar):
+  SELECTION, deterministic and registered verbatim: among the _test.go files in the same package
+  directory as src_files[0], at the parent commit, excluding every path in t["tests"], take the
+  LARGEST one that is at most 6000 bytes; if none is under the cap, take the smallest and truncate it
+  to 6000 bytes at a line boundary. Largest-under-cap, because the exemplar's job is to show API
+  surface and the cap is what keeps it cheap.
+  AVAILABILITY, measured before the predictions: 36 of 51 tasks have such a file; chosen size median
+  4516 bytes. The other 15 run exactly as before, so the arm touches 36 rows and 15 are a control.
+  PLACEMENT: after the buggy sources, before the instruction, framed as
+    "// An existing test file from the same package, at this commit. It shows the package's real API
+     and test conventions. It is NOT about this bug: do not copy its cases or its assertions."
+  Everything else is unchanged from the form-retry arm: qwen3-coder:30b-32k, temp 0, seed 0,
+  max_tokens 4000, --form-retry 1, the same repairs, the same keep rule, the same isolation, the same
+  gold instrument, the same hidden judge.
+
+BASELINE, restricted to the 36 so the comparison is like for like (from the form-retry draw):
+      USEFUL 2 · FALSE-ALARM 10 · toothless 8 · nocompile 16 · KEPT 12
+  Both of the campaign's two useful tests are inside the 36, so this arm can LOSE as well as gain.
+  Whole bench for reference: USEFUL 2 · FALSE-ALARM 18 · toothless 10 · nocompile 21 · KEPT 20.
+  Ceiling: a perfect writer keeps 32/51 with 31 useful.
+  Router reach: of the 3 tasks only the 7B solves, only NEBULA has an exemplar. filebrowser and
+  delve have no untouched sibling test in their package, so the router almost cannot move, and the
+  router is NOT this arm's primary metric. The primary metric is USEFUL and the useful/kept ratio.
+
+PREDICTIONS (written before the first call of this arm):
+  P(nocompile on the 36 falls below 16)            = 0.70
+  P(nocompile on the 36 <= 10)                     = 0.35
+  P(USEFUL on the 36 >= 3, i.e. at least one new)  = 0.45
+  P(USEFUL on the 36 >= 5)                         = 0.20
+  P(USEFUL on the 36 < 2, the arm LOSES a test)    = 0.15
+  P(KEPT on the 36 rises above 12)                 = 0.60
+  P(useful/kept ratio on the 36 beats 2/12 = 17%)  = 0.35
+  P(toothless on the 36 rises above 8)             = 0.45
+        registered because it is the arm's own risk: an exemplar is a PASSING test, and a writer
+        that copies its shape may write a test that passes on the buggy code too.
+  P(router STRICT > 17)                            = 0.10
+  The number that decides the next arm is USEFUL. It has been 2 · 2 · 2 across three arms.
+
+WHAT EACH OUTCOME MEANS, WRITTEN NOW SO IT CANNOT BE CHOSEN LATER:
+  nocompile falls AND useful rises  -> the gap was access; retrieval is the lever and training is
+                                       aimed at the wrong target. Build the exemplar into the pipeline
+                                       and re-ask the training question afterwards.
+  nocompile falls AND useful flat   -> the writer can now SPEAK the API and still does not know what
+                                       the commit means. That is the cleanest possible case for RLVR,
+                                       and it isolates the reward to judgement alone.
+  nothing moves                     -> the prompt is not the lever at all; go to training directly.
+  toothless rises                   -> the exemplar biases toward passing tests; the framing line is
+                                       implicated and the arm is re-registered with it removed, once.
+
+COST. 36 writer calls (the other 15 rows are reused byte-identical), ~90 min, $0, one router pass.

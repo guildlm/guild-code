@@ -44,15 +44,59 @@ FORM_RETRY = ("Your previous answer contained no test function. It is not usable
               "call the existing API and fail on the buggy code above. Do not output the implementation.")
 
 
+EXEMPLAR_CAP = 6000
+EXEMPLAR_NOTE = ("// An existing test file from the same package, at this commit. It shows the package's real API "
+                 "and test conventions.\n// It is NOT about this bug: do not copy its cases or its assertions.")
+
+
+def exemplar_for(t, cache):
+    """The registered selection rule (PREREG-testwriter-exemplar-show-it-a-neighbour.txt): among the
+    _test.go files in the package directory of src_files[0], at the PARENT commit, excluding every path
+    the fix commit touches, take the LARGEST at most EXEMPLAR_CAP bytes; if none fits, the smallest,
+    truncated at a line boundary. Returns (path, source) or None. Cannot leak: the parent predates the
+    fix and the commit's own test files are excluded by path."""
+    repo = os.path.join(cache, t["repo"].replace("/", "__"))
+    pkgdir = os.path.dirname(t["src_files"][0])
+    try:
+        listing = subprocess.run(["git", "-C", repo, "ls-tree", "-r", "--name-only", t["parent"]],
+                                 capture_output=True, text=True, timeout=120)
+    except Exception:  # noqa: BLE001
+        return None
+    if listing.returncode != 0:
+        return None
+    sib = [p for p in listing.stdout.split("\n")
+           if p.endswith("_test.go") and os.path.dirname(p) == pkgdir and p not in t["tests"]]
+    if not sib:
+        return None
+    sized = []
+    for p in sib:
+        q = subprocess.run(["git", "-C", repo, "cat-file", "-s", f"{t['parent']}:{p}"],
+                           capture_output=True, text=True, timeout=60)
+        sized.append(((int(q.stdout.strip()) if q.stdout.strip().isdigit() else 10 ** 9), p))
+    under = [x for x in sized if x[0] <= EXEMPLAR_CAP]
+    _, path = max(under) if under else min(sized)
+    q = subprocess.run(["git", "-C", repo, "show", f"{t['parent']}:{path}"],
+                       capture_output=True, text=True, timeout=60)
+    if q.returncode != 0 or not q.stdout.strip():
+        return None
+    src = q.stdout
+    if len(src) > EXEMPLAR_CAP:
+        src = src[:EXEMPLAR_CAP].rsplit("\n", 1)[0] + "\n// ... (truncated)\n"
+    return path, src
+
+
 def pkg_of(src):
     m = re.search(r"^package\s+(\w+)", src, re.M)
     return m.group(1) if m else "main"
 
 
-def build_prompt(t):
+def build_prompt(t, exemplar=None):
     parts = [f"Commit message:\n{t['subject']}\n{t['body']}".rstrip(), ""]
     for p, src in t["before"].items():
         parts.append(f"// file: {p}\n```go\n{src}\n```")
+    if exemplar:
+        ep, esrc = exemplar
+        parts.append(f"{EXEMPLAR_NOTE}\n// file: {ep}\n```go\n{esrc}\n```")
     pkg = pkg_of(t["before"][t["src_files"][0]])
     parts.append(f"Write the test file for package `{pkg}` (directory of {t['src_files'][0]}). Its tests must fail on the code above and pass once the bug is fixed.")
     return "\n\n".join(parts)
@@ -160,6 +204,9 @@ def main():
     ap.add_argument("--temp", type=float, default=0.0); ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=4000)
     ap.add_argument("--save", required=True); ap.add_argument("--ids"); ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--exemplar", action="store_true",
+                    help="show the writer one untouched sibling _test.go from the same package at the "
+                         "parent commit (the exemplar arm's registered selection rule). Off by default.")
     ap.add_argument("--form-retry", type=int, default=1,
                     help="if the extracted block has no TestXxx, re-ask the model this many times with "
                          "the registered FORM_RETRY turn appended. DEFAULT 1 since 2026-09-21: the arm "
@@ -188,6 +235,7 @@ def main():
         tid = f"{t['repo']}@{t['sha'][:8]}"
         if tid in done:
             rows.append(done[tid]); continue
+        ex = None
         if tid in prior:
             out = prior[tid]
         elif a.model == "hidden":  # instrument test: the commit's own test file plays the self-test (no model)
@@ -196,7 +244,10 @@ def main():
             out = "```go\n" + (t["tests"][cands[0]] if cands else "") + "\n```"
         else:
             try:
-                out = h.ask(a.base_url, a.model, build_prompt(t), a.temp, a.max_tokens, a.seed)
+                ex = exemplar_for(t, a.cache) if a.exemplar else None
+                if a.exemplar:
+                    print(f"{tid:40} exemplar: {ex[0] if ex else 'NONE in this package'}", flush=True)
+                out = h.ask(a.base_url, a.model, build_prompt(t, ex), a.temp, a.max_tokens, a.seed)
             except Exception as e:  # noqa: BLE001
                 out = f"ERR {type(e).__name__}"
         raw = extract_test(out)
@@ -209,7 +260,8 @@ def main():
             tries += 1
             print(f"{tid:40} form failure (no TestXxx) -> re-asking {tries}/{a.form_retry}", flush=True)
             try:
-                out = h.ask(a.base_url, a.model, build_prompt(t) + "\n\n" + FORM_RETRY, a.temp, a.max_tokens, a.seed)
+                out = h.ask(a.base_url, a.model, build_prompt(t, ex) + "\n\n" + FORM_RETRY,
+                            a.temp, a.max_tokens, a.seed)
             except Exception as e:  # noqa: BLE001
                 out = f"ERR {type(e).__name__}"
             raw = extract_test(out)
