@@ -167,6 +167,14 @@ def silence_unused(test_src, out):
     return "\n".join(lines)
 
 
+TOPLEVEL_RE = re.compile(r"^(?:func\s+(\w+)\s*\(|type\s+(\w+)\b|var\s+(\w+)\b|const\s+(\w+)\b)", re.M)
+
+
+def top_level_names(src):
+    """package-level declarations, methods excluded (a method name cannot redeclare)"""
+    return {next(g for g in m.groups() if g) for m in TOPLEVEL_RE.finditer(src or "")}
+
+
 def test_names(src):
     return set(re.findall(r"^func (Test\w+)\s*\(", src, re.M))
 
@@ -180,19 +188,33 @@ def run_selftest(t, files, test_src, cache, env, workroot, keep_pkg_tests=False)
         Safe against leakage and WRONG about the task: it also deletes the package's test FIXTURES, so
         a self-test may not use the helpers a human test author uses. Measured cost: the gold test
         itself does not compile under this rule on 16 of 51 tasks.
-      keep_pkg_tests=True: only the FIX COMMIT's own test files are removed (t["tests"] — the gold,
-        which must never be visible), and the package's other test files stay. The self-test then has
-        exactly what the human author had. Leakage is still impossible: the gold arrives with the fix
-        and its paths are deleted by name. Sibling tests are compiled but NOT RUN: -run is restricted
-        to the self-test's own function names, so a sibling's red cannot be read as the self-test's."""
+      keep_pkg_tests=True: the package's test files stay as they are AT THE PARENT, so the self-test
+        has the fixtures a human test author has. Leakage is impossible by construction and not by
+        deletion: the worktree is `git worktree add --detach <parent>`, and the gold test arrives
+        with the FIX, so it is never on disk. The only file removed is one that would REDECLARE a
+        name the self-test declares. Sibling tests are compiled but NOT RUN: -run is restricted to
+        the self-test's own function names, so a sibling's red can never be read as the self-test's.
+        Measured against the first form of this rule, which deleted the fix's test files by name:
+        that form broke every sibling depending on a helper defined in them, 6 scored rows -> error."""
     pkgdir = os.path.dirname(t["src_files"][0]) or "."
     wt = L.Worktree(cache, t, workroot)
     try:
         wt.write(files)
         d = os.path.join(wt.wt, pkgdir)
-        gold = {os.path.basename(p) for p in t["tests"] if os.path.dirname(p) == pkgdir}
         for f in os.listdir(d):
-            if f.endswith("_test.go") and (not keep_pkg_tests or f in gold):
+            if not f.endswith("_test.go"):
+                continue
+            if not keep_pkg_tests:
+                os.remove(os.path.join(d, f)); continue
+            # THE RULE (2026-09-22, second form). The worktree is at the PARENT, so the gold test --
+            # which arrives with the fix -- is not on disk at all and there is nothing to delete for
+            # leakage. Deleting the fix's test file BY NAME (the first form) was still wrong: every
+            # sibling that uses a helper defined in it stopped compiling, and 6 scored rows turned
+            # into 'error'. So delete nothing for safety and delete only for COLLISION: a file that
+            # declares a top-level name the self-test also declares would be a redeclaration.
+            with open(os.path.join(d, f), encoding="utf-8", errors="ignore") as fh:
+                other = fh.read()
+            if top_level_names(other) & top_level_names(test_src):
                 os.remove(os.path.join(d, f))
         with open(os.path.join(d, SELFTEST_NAME), "w", encoding="utf-8") as f:
             f.write(test_src)
@@ -260,9 +282,15 @@ def main():
                          "2026-09-22 reproduces byte-identically.")
     ap.add_argument("--rescore", help="re-extract, re-repair and re-score the raw outputs of this earlier draw (no model call)")
     a = ap.parse_args()
-    prior = {}
+    prior, prior_test = {}, {}
     if a.rescore:
-        prior = {r["id"]: r["output"] for r in (json.loads(l) for l in open(a.rescore))}
+        for r in (json.loads(l) for l in open(a.rescore)):
+            prior[r["id"]] = r["output"]
+            # An instrument A/B must replay the artifact that was SCORED, not the last text the
+            # model happened to produce. Where the earlier row carries its post-repair test, that
+            # is the artifact; re-extracting from "output" can yield a different program entirely.
+            if r.get("test"):
+                prior_test[r["id"]] = r["test"]
     tasks = [json.loads(l) for l in open(a.bench)]
     if a.limit:
         tasks = tasks[:a.limit]
@@ -296,6 +324,7 @@ def main():
             except Exception as e:  # noqa: BLE001
                 out = f"ERR {type(e).__name__}"
         raw = extract_test(out)
+        replay = prior_test.get(tid) if a.rescore else None
         # FORM CHECK (registered, deterministic): an output with no TestXxx is rejected and re-asked.
         # The rejected output is never scored -- one retry, not best-of-two.
         form_hist, tries = [], 0
@@ -313,9 +342,10 @@ def main():
         row = {"id": tid, "model": a.model, "parent_status": t["parent_status"], "output": out, "test": None,
                "parent": None, "gold": None, "parent_fails": [], "gold_fails": [], "kept": False,
                "form_retries": tries, "form_rejected": form_hist}
-        if raw:
-            test_src = repair(raw, t, tmp)
+        if replay or raw:
+            test_src = replay if replay else repair(raw, t, tmp)
             row["test"] = test_src
+            row["replayed"] = bool(replay)
             st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot, a.keep_package_tests)
             if st_p == "nocompile":
                 fixed = silence_unused(test_src, out_p)
@@ -355,7 +385,15 @@ def main():
                             if not (silenced & set(re.findall(r"undefined: (\w+)", out2))):
                                 test_src = fixed; row["test"] = test_src; row["unused_repaired"] = True
                                 st_p, f_p, out_p = st2, f2, out2
-                row["output"] = out
+                    row["output"] = out          # the retry was accepted: it is the answer now
+                else:
+                    # DISCARDED retry (2026-09-22): row["output"] used to be overwritten here
+                    # unconditionally, so for every row whose retry had no TestXxx the record kept
+                    # the DISCARDED text as "output" and filed the SCORED text under
+                    # "compile_rejected" -- the two names inverted on exactly the rows that failed.
+                    # Any later reader of "output" then re-derives a different program from the one
+                    # that was scored; --rescore was the first consumer to hit it, on 3 rows.
+                    row["compile_discarded"] = out
             row["parent"], row["parent_fails"] = st_p, sorted(f_p)
             row["kept"] = st_p == "red"
             st_g, f_g, out_g = run_selftest(t, dict(t["after"]), test_src, a.cache, env, workroot, a.keep_package_tests)

@@ -1,0 +1,119 @@
+RESULT (2026-09-22) — go_swe_bench v0: the SELF-TEST ISOLATION repair.
+"The instrument could not accept the truth, and the writer was charged for it"
+=========================================================================================
+PREREG: PREREG-selftest-isolation-the-harness-deleted-the-fixtures.txt (commit 1f688ae, written
+and committed before the rescore). No model was called anywhere in this work. Cost: CPU, $0.
+
+(A) THE HEADLINE. The commit's own test — human-written, merged, correct — played through the
+self-test harness (--model hidden, no model call):
+
+      verdict          delete every _test.go     keep the package's tests
+      USEFUL                        31                        35
+      FALSE-ALARM                    1                         3
+      nocompile                     16                        10
+      no-test                        0                         3
+      ?                              3                         0
+      KEPT                          32                        38
+
+  Six tasks recovered (docker/compose, gin, gorilla/mux, helm, zap, urfave/cli), none broken.
+  The old rule deleted every _test.go in the package directory so the gold could not be seen. It
+  also deleted the package's test FIXTURES, so on 16 of 51 tasks the harness rejected the correct
+  answer. Every USEFUL number this line has ever published sat on that ceiling and none of them
+  said so.
+
+(B) AND IT BOUGHT THE WRITER NOTHING. The same 30B draw, rescored under the repaired instrument —
+same scored test artifacts, no model call:
+
+      verdict          old harness    repaired
+      USEFUL                     5           5
+      FALSE-ALARM               20          19
+      toothless                  8           8
+      nocompile                 17          17
+      error                      1           2
+      KEPT                      25          24
+
+  One row changed: jmoiron/sqlx, FALSE-ALARM -> error. That is the whole difference.
+  This is the outcome branch registered in advance as "gold nocompile falls AND useful flat": the
+  harness was wrong AND the writer still cannot use the fixtures it was denied. Both halves are
+  facts and the second one is the load-bearing one. The writer's gap is its own.
+
+(C) THE UNREACHABLE CLASS, NAMED FOR THE FIRST TIME. Nine tasks whose gold test compiles against
+the FIX and not against the parent — it names a symbol the fix introduces:
+      colima, fx, asdf, caddy, gum, gitleaks, beszel, rqlite, vegeta
+  No red-at-parent self-test can exist for these, by anyone, ever. They are not writer failures and
+  they must leave the writer's failure column. With the 3 rows where the gold file yields no test
+  block, the reachable maximum measured BY THE GOLD ITSELF is 38 KEPT / 35 USEFUL of 51 — not 48.
+  The writer's 5 USEFUL is 5 against 35, not 5 against 48. The gap is smaller than advertised and
+  still enormous.
+
+(D) HOW IT WAS FOUND, AND WHAT IT COST TO NOT FIND IT. The next arm on the list was the SYMBOL-LIST
+arm: hand the writer the package's exported identifiers, because "the invented-symbol class is a
+retrieval problem". Before writing its prereg I measured where the 7 invented symbols actually are:
+      rqlite   servicetest, readCommand, simpleDialer   only in sibling _test.go files
+      go-kit   instance                                 only in a sibling _test.go file
+      go-micro AckWait, RetryLimit, AutoAck, Group      nowhere in the repo — a true invention
+      beszel   core.Event, core.Logger                  an external module's API
+      fzf      util                                     a sibling PACKAGE, not a symbol
+  Not one is in the package's own non-test .go files, which is exactly what that arm proposed to
+  hand over. The arm is WITHDRAWN. The measurement cost four minutes; the arm would have cost an
+  hour and produced a null whose cause I would have misread as "retrieval does not help here".
+
+(E) THREE DEFECTS OF MY OWN, EACH CAUGHT BY THE GATE AND EACH NAMED.
+  1. FIRST FORM OF THE RULE: delete the fix's test files by name, keep the rest. The acceptance gate
+     came back 16 -> 23, WORSE. Cause: pkgdir is "." for a root package while a root path's dirname
+     is "", so the comparison silently exempted every root-package task and the gold file survived
+     next to its own copy — 10 rows of "redeclared in this block". A path comparison that is only
+     correct off the root is the same family as every defect this kit found this week.
+  2. SECOND FORM, after normalizing: gate 16 -> 9, but 6 scored writer rows turned into 'error',
+     because deleting the fix's test file broke every sibling that used a helper defined in it.
+     Deleting for safety was never necessary: the worktree is `git worktree add --detach <parent>`
+     and the gold arrives WITH THE FIX, so it is not on disk at all. The final rule deletes nothing
+     for leakage and deletes a file only when it would REDECLARE a name the self-test declares.
+     Gate 16 -> 10, writer rows broken: 1.
+  3. THE ARCHIVE'S OWN RECORD WAS INVERTED. In the compile-retry arm, row["output"] was overwritten
+     with the retry text unconditionally — including when the retry was DISCARDED for having no
+     TestXxx. So on those rows the record kept the discarded text as "output" and filed the SCORED
+     text under "compile_rejected". --rescore was the first consumer to read "output" as the answer
+     and it silently re-derived a different program on 3 rows (fzf, act, rqlite), which showed up as
+     3 phantom "no-test" verdicts in the first rescore table. Fixed twice: the writer no longer
+     overwrites a discarded retry (it records compile_discarded), and --rescore now replays the
+     SCORED TEST when the earlier row carries one. An instrument A/B must replay the artifact that
+     was scored, not the last text the model happened to produce.
+
+(F) PREDICTIONS -> OUTCOMES. 1 of 7.
+      P(gold nocompile <= 8 of 51)   = 0.60  MISS  (10)
+      P(gold nocompile == 0)         = 0.10  MISS
+      P(USEFUL > 5)                  = 0.55  MISS  (5)
+      P(USEFUL > 7)                  = 0.25  MISS
+      P(nocompile < 17)              = 0.70  MISS  (17)
+      P(rqlite OR go-kit compiles)   = 0.50  MISS  (neither)
+      P(>= 1 row gets WORSE)         = 0.45  HIT   (jmoiron/sqlx)
+  The only prediction I got right was the one about my own repair doing damage. Yesterday's line
+  was "my magnitudes are worse than my mechanisms"; today even the mechanism missed — I believed the
+  writer was being suppressed by the harness and it was not. What the harness suppressed was the
+  GOLD. Registered: I am better at finding a defect than at predicting who it was hurting.
+
+FINDINGS.
+  1. An instrument that cannot accept the known-correct answer is not measuring what it claims. The
+     probe that proves it (--model hidden through the self-test path) already existed and had been
+     run; its 16 nocompile rows sat in data/ unread while three arms were spent above them. Running
+     a probe is not the same as reading it.
+  2. Isolation was implemented as deletion when it only ever needed to be construction. The gold was
+     already absent by virtue of the checkout; everything the deletion removed beyond that was cost.
+  3. The writer does not use the fixtures. Given them back, it wrote exactly the same tests. So the
+     invented-symbol class is NOT a fixture-access problem, and the retrieval lever that worked
+     (a neighbouring test file) worked by showing the model HOW to write, not WHAT to call.
+  4. Every number this line quotes needs its denominator restated: 9 tasks are unreachable by
+     construction and 3 more have no test block in the gold. The bench is 51 rows and 38 of them
+     are answerable.
+
+NEXT (in order):
+  a. Re-publish the card with the restated denominator. Every prior USEFUL is a count against 35,
+     not 48, and the archive should say so in the same place it says the count.
+  b. The training arm, unchanged in motivation, now measured against a real ceiling. Its reward is
+     still two toolchain facts: red at the parent AND green on the gold.
+  c. Open, not closed: go-kit's "undefined: instance" and rqlite's "undefined: servicetest" survive
+     the repair. Their symbols are in sibling test files that the collision rule may itself be
+     removing. One row of forensics each, not an arm.
+
+— Vefa, 2026-09-22
