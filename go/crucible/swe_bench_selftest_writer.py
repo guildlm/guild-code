@@ -171,21 +171,34 @@ def test_names(src):
     return set(re.findall(r"^func (Test\w+)\s*\(", src, re.M))
 
 
-def run_selftest(t, files, test_src, cache, env, workroot):
-    """isolated: every other _test.go in the package dir is removed. -> (status, failing self-test names, output)
-    status: 'nocompile' (the self-test itself does not build) | 'red' | 'green' | 'error' (the package/test binary broke elsewhere)"""
+def run_selftest(t, files, test_src, cache, env, workroot, keep_pkg_tests=False):
+    """-> (status, failing self-test names, output)
+    status: 'nocompile' (the self-test itself does not build) | 'red' | 'green' | 'error' (the package/test binary broke elsewhere)
+
+    ISOLATION, two settings:
+      keep_pkg_tests=False (the rule until 2026-09-22): every _test.go in the package dir is removed.
+        Safe against leakage and WRONG about the task: it also deletes the package's test FIXTURES, so
+        a self-test may not use the helpers a human test author uses. Measured cost: the gold test
+        itself does not compile under this rule on 16 of 51 tasks.
+      keep_pkg_tests=True: only the FIX COMMIT's own test files are removed (t["tests"] — the gold,
+        which must never be visible), and the package's other test files stay. The self-test then has
+        exactly what the human author had. Leakage is still impossible: the gold arrives with the fix
+        and its paths are deleted by name. Sibling tests are compiled but NOT RUN: -run is restricted
+        to the self-test's own function names, so a sibling's red cannot be read as the self-test's."""
     pkgdir = os.path.dirname(t["src_files"][0]) or "."
     wt = L.Worktree(cache, t, workroot)
     try:
         wt.write(files)
         d = os.path.join(wt.wt, pkgdir)
+        gold = {os.path.basename(p) for p in t["tests"] if os.path.dirname(p) == pkgdir}
         for f in os.listdir(d):
-            if f.endswith("_test.go"):
+            if f.endswith("_test.go") and (not keep_pkg_tests or f in gold):
                 os.remove(os.path.join(d, f))
         with open(os.path.join(d, SELFTEST_NAME), "w", encoding="utf-8") as f:
             f.write(test_src)
-        rc, out = h.sh(["go", "test", "-count=1", "-timeout", "120s", "-run", "^Test", f"./{pkgdir}" if pkgdir != "." else "."], wt.wt, env)
         names = test_names(test_src)
+        run = f"^({'|'.join(sorted(names))})$" if (keep_pkg_tests and names) else "^Test"
+        rc, out = h.sh(["go", "test", "-count=1", "-timeout", "120s", "-run", run, f"./{pkgdir}" if pkgdir != "." else "."], wt.wt, env)
         if rc == 0:
             return "green", set(), out
         if any(SELFTEST_NAME in l for l in out.splitlines() if re.search(r"\.go:\d+:\d+:", l)):
@@ -239,6 +252,12 @@ def main():
                          "measured 16/16 conversion for one turn, so it is free and removes a whole "
                          "failure class. Pass 0 to reproduce any draw made before that date. The first "
                          "output is never scored: one retry, not best-of-two.")
+    ap.add_argument("--keep-package-tests", action="store_true",
+                    help="keep the package's OTHER _test.go files at compile time and delete only the fix "
+                         "commit's own test files (the gold). The self-test is then written against what a "
+                         "human test author actually has. Sibling tests are compiled, never run: -run is "
+                         "restricted to the self-test's own names. Off by default so every draw before "
+                         "2026-09-22 reproduces byte-identically.")
     ap.add_argument("--rescore", help="re-extract, re-repair and re-score the raw outputs of this earlier draw (no model call)")
     a = ap.parse_args()
     prior = {}
@@ -297,12 +316,12 @@ def main():
         if raw:
             test_src = repair(raw, t, tmp)
             row["test"] = test_src
-            st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot)
+            st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot, a.keep_package_tests)
             if st_p == "nocompile":
                 fixed = silence_unused(test_src, out_p)
                 if fixed:
                     silenced = {n for _, n in UNUSED_RE.findall(out_p)}
-                    st2, f2, out2 = run_selftest(t, dict(t["before"]), fixed, a.cache, env, workroot)
+                    st2, f2, out2 = run_selftest(t, dict(t["before"]), fixed, a.cache, env, workroot, a.keep_package_tests)
                     # DO NO HARM (2026-09-21): the insertion can land outside the variable's scope and
                     # turn "declared and not used: x" into "undefined: x", which is worse than the
                     # error it was fixing. Measured on gorilla/mux: 1 injury in 6 firings. Keep the
@@ -327,19 +346,19 @@ def main():
                 raw2 = extract_test(out)
                 if raw2 and test_names(raw2):
                     test_src = repair(raw2, t, tmp); row["test"] = test_src
-                    st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot)
+                    st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot, a.keep_package_tests)
                     if st_p == "nocompile":
                         fixed = silence_unused(test_src, out_p)
                         if fixed:
                             silenced = {n for _, n in UNUSED_RE.findall(out_p)}
-                            st2, f2, out2 = run_selftest(t, dict(t["before"]), fixed, a.cache, env, workroot)
+                            st2, f2, out2 = run_selftest(t, dict(t["before"]), fixed, a.cache, env, workroot, a.keep_package_tests)
                             if not (silenced & set(re.findall(r"undefined: (\w+)", out2))):
                                 test_src = fixed; row["test"] = test_src; row["unused_repaired"] = True
                                 st_p, f_p, out_p = st2, f2, out2
                 row["output"] = out
             row["parent"], row["parent_fails"] = st_p, sorted(f_p)
             row["kept"] = st_p == "red"
-            st_g, f_g, out_g = run_selftest(t, dict(t["after"]), test_src, a.cache, env, workroot)
+            st_g, f_g, out_g = run_selftest(t, dict(t["after"]), test_src, a.cache, env, workroot, a.keep_package_tests)
             row["gold"], row["gold_fails"] = st_g, sorted(f_g)
             row["parent_tail"], row["gold_tail"] = out_p[-400:], out_g[-400:]
         has_tests = bool(row["test"]) and bool(test_names(row["test"]))

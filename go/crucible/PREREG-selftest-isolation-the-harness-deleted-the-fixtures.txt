@@ -1,0 +1,113 @@
+PREREG (2026-09-22, written before the rescore) — go_swe_bench v0: the SELF-TEST ISOLATION repair.
+"The harness deleted the fixtures, and then scored the writer for missing them"
+=========================================================================================
+This is not a new arm. It is an INSTRUMENT REPAIR and a re-scoring of draws that already exist.
+No model is called anywhere in it. Its cost is CPU and $0.
+
+HOW IT WAS FOUND. The next arm on the archive's list was the SYMBOL-LIST arm, whose premise was
+finding 2 of the compile-retry result: "the invented-symbol class is a retrieval problem; put the
+package's exported symbols in front of the writer." Before writing that prereg I measured where the
+7 invented symbols actually live. The answer killed the premise:
+
+      row                symbols                                    where they really are
+      rqlite             servicetest, readCommand, simpleDialer     ONLY in sibling _test.go files
+      go-kit/kit         instance                                   ONLY in a sibling _test.go file
+      go-micro           AckWait, RetryLimit, AutoAck, Group        nowhere in the repo — a true invention
+      beszel             core.Event, core.Logger                    an external module's API
+      fzf                util                                       a sibling PACKAGE (src/util)
+      mediamtx, gitleaks (now parse errors after the compile retry; no longer this class)
+
+  Not one of them is in the package's own non-test .go files, which is exactly what the symbol-list
+  arm proposed to hand over. The arm would have bought nothing, and I would have spent an hour
+  discovering that. The measurement cost four minutes.
+
+THE DEFECT. run_selftest() removed EVERY _test.go in the package directory before compiling, to keep
+the gold test invisible. It also removed the package's test FIXTURES — the helpers, fakes and table
+builders that every Go package keeps in its test files. Meanwhile the EXEMPLAR arm (2026-09-21) shows
+the writer one of those very files and tells it "this shows the package's real API and conventions".
+So the pipeline was: show the writer a file, let it use what the file defines, then delete the file
+and report "undefined: simpleDialer". The compile-retry arm then handed that error back to the model,
+which could not act on it, because from where the model stood the symbol existed. Two of the seven
+INVENTED rows are this, and they were counted as the model's invention.
+
+THE PROOF WAS ALREADY IN THE ARCHIVE, UNREAD. data/go_swe_bench_v0_selftests_hidden.jsonl is the
+instrument probe in which the COMMIT'S OWN TEST plays the self-test (--model hidden, no model call).
+Scored through the self-test harness it reads:
+
+      USEFUL 31 · nocompile 16 · FALSE-ALARM 1 · ? 3      (51 rows)
+
+  The human-written, merged, correct test for the bug DOES NOT COMPILE under this harness on 16 of 51
+  tasks. Its nocompile list contains rqlite and go-kit — the same two rows. The writer was being
+  measured against a bar the gold itself clears only 31 times in 51, and the failure was recorded
+  against the writer. Every USEFUL number in this line's history has that ceiling under it.
+  This file is not a critique of the earlier arms: their comparisons were between writers under a
+  fixed instrument and they stand. What does not stand is reading any of them as a distance to 48.
+
+THE REPAIR (swe_bench_selftest_writer.py --keep-package-tests, off by default).
+  - Delete ONLY the fix commit's own test files (the keys of t["tests"]) from the package directory.
+    The gold arrives with the fix and is removed by name, so leakage remains impossible.
+  - Keep every other _test.go in the package. The self-test then has what a human author has.
+  - Sibling tests are COMPILED, never RUN: -run is restricted to the self-test's own function names,
+    so a sibling's red can never be read as the self-test's red. When the flag is off, the command is
+    byte-identical to before (-run ^Test) and every earlier draw reproduces exactly.
+  - All five call sites take the flag, including the two that re-verify a silence_unused repair. A
+    repair verified under a different isolation rule than the score is the bug class this archive
+    has already paid for twice.
+
+ACCEPTANCE GATE, RUN BEFORE ANY PREDICTION BELOW (this is the instrument's own test, not a result):
+  --model hidden --keep-package-tests must move the gold test's nocompile count DOWN from 16.
+  If it does not, the repair is wrong and nothing else in this file is scored.
+  The rows that stay nocompile are expected to be the ones whose gold test cannot compile at the
+  PARENT for a reason the fix itself introduces (gold=green, parent=nocompile: the test names a
+  symbol the fix adds). Those tasks are unreachable for ANY red-at-parent self-test and belong in a
+  separate, named class — not in the writer's failure column.
+
+DISCLOSURE, because a prereg that hides what its author had already seen is worthless: the
+acceptance probe was STARTED before these predictions were written and was streaming while I wrote
+them. When I wrote them I had seen 26 of its 51 rows go past, among them docker/compose and helm
+turning from nocompile to USEFUL and caddy, gum and beszel staying nocompile with gold=green. Those
+are the GOLD's rows, not the writer's, and the predictions below are about the WRITER's rescore,
+which has not been run. I did not see the probe's totals. Recorded here so the reader can discount
+P(gold nocompile <= 8) accordingly — it is the one prediction this leak touches.
+
+PREDICTIONS for the RESCORE of the existing 30B compile-retry draw under the repaired instrument
+(--rescore, same outputs, no model call), written before it runs:
+  P(the gold's nocompile falls to <= 8 of 51)                          = 0.60
+  P(the gold's nocompile falls to 0)                                   = 0.10
+      reasoning registered: the compile_error tasks (gold=green, parent=nocompile) are a separate
+      cause the repair does not touch, and there were 11 of them on this bench.
+  P(USEFUL on the 48-task bench rises above 5)                         = 0.55
+  P(USEFUL rises above 7)                                              = 0.25
+  P(nocompile falls below 17)                                          = 0.70
+  P(rqlite OR go-kit compiles in the rescore)                          = 0.50
+      these two are the rows the defect was found on; if the repair is real they are where it shows.
+  P(at least one row gets WORSE — a sibling test file that no longer compiles turns a scored row
+    into 'error')                                                      = 0.45
+      registered as this repair's own risk. Keeping files can break a build as easily as fix one.
+  P(router STRICT > 18)                                                = 0.30
+  P(router STRICT < 18)                                                = 0.10
+  The primary number remains USEFUL. It has been 2 · 2 · 2 · 4 · 5 under an instrument whose ceiling
+  was never measured, and that is the sentence this file exists to make impossible to repeat.
+
+WHAT EACH OUTCOME MEANS, WRITTEN NOW:
+  gold nocompile falls AND USEFUL rises    -> the writer was being charged for the harness's deletion.
+                                              Every prior USEFUL number is a floor, and the next arm
+                                              is chosen against a real ceiling for the first time.
+  gold nocompile falls AND USEFUL flat     -> the harness was wrong and the writer still cannot use
+                                              the fixtures it was denied. The repair is still correct
+                                              (the instrument must be able to accept the truth) and
+                                              the writer's gap is bigger than the defect hid.
+  gold nocompile does not fall             -> my account of the cause is wrong. Stop, re-measure, do
+                                              not rescore anything.
+  some row gets worse                      -> named individually in the result with its error, not
+                                              netted out of the total. A repair that is only reported
+                                              net is a repair that hides its own cost.
+
+AFTERWARDS, IN ORDER:
+  a. Re-take the baseline for every number this line quotes, under the repaired instrument.
+  b. Only then decide the next arm. The symbol-list arm as written is withdrawn by this file: its
+     targets are a harness artefact (2), an external module (1), a sibling package (1) and a true
+     invention (1). If a retrieval arm follows, its radius is the MODULE, not the package directory.
+  c. The training arm is unchanged in motivation and must be re-baselined before it is spent.
+
+— Vefa, 2026-09-22
