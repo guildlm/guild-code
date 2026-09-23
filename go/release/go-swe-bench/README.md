@@ -84,6 +84,14 @@ repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <g
 | **router** STRICT, same files, exemplar gate (21 tests) | **18/51** | — | — | oracle 20. The campaign's first switch: on nebula the gate is red at the parent, green on the gold, failing on the 30B's fix and green on the 7B's — verified against all four file sets |
 | 30B writer + **compile retry** (hand the toolchain's own error lines back once; truncated outputs re-asked at 8000 tokens) | — | — | — | 5/20 non-truncated rows compile, and the rate is stratified by error class: **type errors 4/11, undefined-symbol errors 0/7**. useful 4 → 5, kept 21 → 25, nocompile 23 → 17 |
 | **router** STRICT, same files, compile-retry gate (25 tests) | 18/51 | — | — | unchanged. A compile error is two signals: a type error is information, a name error is the model's ignorance of the package handed back to it |
+| **the commit's own test** through the self-test harness (no model; the instrument's ceiling) | — | — | — | old isolation (delete every `_test.go` in the package): useful **31**, nocompile 16 — it deleted the package's test fixtures and rejected the correct answer on 16 tasks. Repaired (keep the package's tests, remove only a file that would redeclare a self-test name): useful **35**, kept 38, nocompile 10 |
+| 30B compile-retry writer, **rescored under the repaired isolation** (same tests, no model call) | — | — | — | useful 5 → 5, false alarms 20 → 19, kept 25 → 24: one row moved. The harness was wrong and the writer still does not use the fixtures it was denied |
+
+**Denominator.** 9 tasks (colima, fx, asdf, caddy, gum, gitleaks, beszel, rqlite, vegeta) have a gold test that
+compiles only against the fix: it names a symbol the fix introduces, so no test that is red at the parent can
+exist for them, written by anyone. 3 more yield no test block from the gold file. The answerable maximum,
+measured by the gold itself, is **38 kept / 35 useful of 51**. Every "useful" count in the self-test rows above
+is out of 35, not 48.
 
 Union of the two file-level rows: 14/51; of the two loop rows: 20/51. Both fail the same way at the top of the size range: no file above ~16k chars
 passed either model at the registered cap. The gold patch of a passing task is ~48 chars (median); of a
