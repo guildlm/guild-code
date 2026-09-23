@@ -131,8 +131,13 @@ def extract_test(out):
     return max(blocks, key=len)
 
 
-def repair(test_src, t, tmp):
-    """stripdecl against every source file of the task's package, then goimports"""
+def repair(test_src, t, tmp, cache=None, workroot=None):
+    """stripdecl against every source file of the task's package, then goimports.
+    With cache/workroot, goimports runs INSIDE the parent worktree (-srcdir = the package dir), so it can
+    resolve the module's own packages. Until 2026-09-23 it ran on a file in tmp, outside any module, and
+    could only add stdlib and module-cache imports: rqlite's self-test used cluster/servicetest by its
+    correct name and was scored 'undefined: servicetest' for want of one import line. Measured on the
+    keeptests draw: 1 row of 51 changes imports; 7 others are parse errors either way."""
     pkgdir = os.path.dirname(t["src_files"][0])
     if not re.search(r"^package\s+\w+", test_src, re.M):
         test_src = f"package {pkg_of(t['before'][t['src_files'][0]])}\n\n" + test_src
@@ -145,7 +150,16 @@ def repair(test_src, t, tmp):
         q = subprocess.run([STRIPDECL, "-impl", ipath, "-test", tpath], capture_output=True, text=True, timeout=60)
         if q.returncode == 0 and q.stdout.strip():
             open(tpath, "w").write(q.stdout)
-    q = subprocess.run([GOIMPORTS, tpath], capture_output=True, text=True, timeout=60)
+    if cache is None:
+        q = subprocess.run([GOIMPORTS, tpath], capture_output=True, text=True, timeout=60)
+    else:
+        wt = L.Worktree(cache, t, workroot)
+        try:
+            wt.write(dict(t["before"]))
+            q = subprocess.run([GOIMPORTS, "-srcdir", os.path.join(wt.wt, pkgdir or "."), tpath],
+                               capture_output=True, text=True, timeout=60, cwd=wt.wt)
+        finally:
+            wt.close()
     return q.stdout if q.returncode == 0 and q.stdout.strip() else open(tpath).read()
 
 
@@ -171,8 +185,10 @@ TOPLEVEL_RE = re.compile(r"^(?:func\s+(\w+)\s*\(|type\s+(\w+)\b|var\s+(\w+)\b|co
 
 
 def top_level_names(src):
-    """package-level declarations, methods excluded (a method name cannot redeclare)"""
-    return {next(g for g in m.groups() if g) for m in TOPLEVEL_RE.finditer(src or "")}
+    """package-level declarations, methods excluded (a method name cannot redeclare), and the blank
+    identifier excluded (`var _ = x` in two files is legal; counting it deleted go-kit's instancer_test.go
+    on a collision that could not happen)"""
+    return {next(g for g in m.groups() if g) for m in TOPLEVEL_RE.finditer(src or "")} - {"_"}
 
 
 def test_names(src):
@@ -343,7 +359,7 @@ def main():
                "parent": None, "gold": None, "parent_fails": [], "gold_fails": [], "kept": False,
                "form_retries": tries, "form_rejected": form_hist}
         if replay or raw:
-            test_src = replay if replay else repair(raw, t, tmp)
+            test_src = replay if replay else repair(raw, t, tmp, a.cache, workroot)
             row["test"] = test_src
             row["replayed"] = bool(replay)
             st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot, a.keep_package_tests)
@@ -375,7 +391,7 @@ def main():
                     out = f"ERR {type(e).__name__}"
                 raw2 = extract_test(out)
                 if raw2 and test_names(raw2):
-                    test_src = repair(raw2, t, tmp); row["test"] = test_src
+                    test_src = repair(raw2, t, tmp, a.cache, workroot); row["test"] = test_src
                     st_p, f_p, out_p = run_selftest(t, dict(t["before"]), test_src, a.cache, env, workroot, a.keep_package_tests)
                     if st_p == "nocompile":
                         fixed = silence_unused(test_src, out_p)

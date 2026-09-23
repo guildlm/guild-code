@@ -117,3 +117,34 @@ NEXT (in order):
      removing. One row of forensics each, not an arm.
 
 — Vefa, 2026-09-22
+
+ADDENDUM (2026-09-23) — NEXT item (c), the two surviving "undefined" rows. One row of forensics
+each, as registered. No model call. 0 verdicts changed.
+
+  rqlite  "undefined: servicetest". NOT a symbol and NOT a sibling test: cluster/servicetest is a
+          PACKAGE of the module, used by its correct name; the self-test lacked one import line.
+          Cause is mine: repair() ran goimports on a file in tmp, outside any module, where it can
+          resolve only stdlib and the module cache. Run inside the parent worktree (-srcdir = pkg
+          dir) it adds the import. FIXED. A/B of the old and new repair() on all 51 scored tests:
+          exactly 1 differs (rqlite). Rerun at the parent, the servicetest errors are gone and
+          only "unknown field Suffrage" remains -- a field the FIX introduces, i.e. rqlite is in the
+          unreachable class (C) regardless. Verdict: nocompile -> nocompile.
+  go-kit  "undefined: instance". A true invention: the writer typed its fixture as
+          instance.EndpointFactory; the package sd/internal/instance exists and has no such type
+          (the real one is sd.Factory). goimports correctly refuses. Second cause on the same row:
+          the writer RE-DECLARED the package's fixtures (newTestClient, testClient, testFactory,
+          registration2entry), so the collision rule removed client_test.go and registrar_test.go,
+          which uses its testRegistration, stopped compiling. The rule did what it says; the writer
+          copied what it was shown. Verdict unchanged.
+  Also fixed: top_level_names counted the blank identifier, so `var _ = x` in two files read as
+          a collision. Checked on every sibling file of every scored row: 0 deletions flip (go-kit's
+          instancer_test.go still collides on TestInstancer). Latent, now closed.
+
+  Side-count, recorded not acted on: of the 17 nocompile rows, 7 do not even PARSE and 5 of those
+  end in "found 'EOF'" -- truncation, not judgement. nocompile is at least three signals (parse /
+  types / names), not two.
+
+  So the 7 "invented symbols" of the compile-retry arm resolve to: 1 missing in-module import
+  (tool, fixed, unreachable anyway), 3 sibling-test helpers, 1 external module API, 1 sibling
+  package, and at least 2 pure inventions (go-micro options, go-kit's type). Retrieval of the
+  package's own exported API would have reached none of them -- the withdrawal stands.
