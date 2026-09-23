@@ -1,0 +1,84 @@
+RESULT (2026-09-23) — go_swe_bench v0: the SYSTEM-PROMPT repair.
+"The contradiction cost form, not judgement"
+=========================================================================================
+PREREG: PREREG-selftest-system-prompt-the-writer-was-told-to-fix.txt (commit ecf708c, before either
+draw). Draws: qwen3-coder:30b-32k, temp 0, seed 0, 51 eval tasks, --keep-package-tests.
+  D1 FULL  (exemplar + form-retry 1 + compile-retry)  09:36-10:37   data/..._30b_sysprompt_full.jsonl
+  D2 BARE  (no exemplar, no retries)                  10:37-11:24   data/..._30b_sysprompt_bare.jsonl
+Cost: local GPU and CPU, $0.
+
+(A) THE TABLE. Denominator 35 (the gold's own USEFUL under this harness). Every row is scored by the
+same instrument, including the post-hoc FAIL-line repair in (D); the as-registered numbers are in (E).
+
+                                         USEFUL  FALSE-AL  toothless  nocompile  no-test  KEPT
+  first draw   (contradicted, bare)          2        13          8         11       16    15
+  D2           (own prompt,   bare)          4        15          9         22        0    19
+  compile-retry composite (contradicted)     5        20          8         17        0    25
+  D1           (own prompt,   full)          7        18          7         18        0    25
+
+  Router STRICT on the D1 gate (25 kept, repaired): preferred 17 · STRICT 18 · oracle 20 · 1 switch,
+  nebula (GOOD) -- the same switch as the exemplar arm, nothing new. Registered D1 gate (24 kept): 18.
+
+(B) WHAT THE CONTRADICTION COST: FORM. Given its own system turn, the bare writer stopped returning the
+fixed source: no-test 16 -> 0. Those 16 rows did not become tests with judgement. They became
+nocompile (+11) and false alarms (+2), with USEFUL moving 2 -> 4. That is the form-retry arm's result
+again, reached by a different route: getting the FORM right is nearly free and buys almost nothing,
+because the distance is JUDGEMENT. The form-retry arm's "16/16 converted in one turn" was a user turn
+shouting down a system turn, and it measured the same thing this repair measures.
+
+(C) WHAT IT DID NOT COST: THE LEVERS. The full config moved 5 -> 7 USEFUL and 20 -> 18 false alarms,
+the smaller move of the two, as bet. The exemplar and retries had already been paying for form, so
+removing the contradiction had less left to fix. The gap between the full and bare configs survives
+the repair: 7 vs 4. The exemplar finding ("from VACUOUS to AMBITIOUS") stands on a clean prompt:
+toothless 9 bare / 7 full, USEFUL 4 bare / 7 full.
+  The churn is large and must be said. D1 lost bubbletea and jaeger from the old USEFUL set and gained
+  casbin, esbuild, lo and testify: 6 rows swapped for a net of +2. At temp 0 a changed prompt re-draws
+  every row, so +2 against a churn of 6 is a small effect at this N and I do not claim more.
+
+(D) AN INSTRUMENT DEFECT FOUND IN THE DRAW (post-hoc, labelled). D1 printed a verdict 'red' that no
+earlier draw had: kept, with the gold run classified 'error'. Two causes, both in how a RED gold run
+was read:
+  1. sqlx: the test binary printed a log line without a trailing newline, so "--- FAIL: TestX" was
+     glued to it and the ^-anchored FAIL_RE missed it. Now unanchored, subtests mapped to their
+     top-level test.
+  2. logrus: the self-test reaches logger.Fatal -> os.Exit(1); the binary exits non-zero with no FAIL
+     line at all. Under --keep-package-tests, -run admits only the self-test's own names, so a binary
+     that BUILT and exited non-zero was stopped by the self-test: now 'red' ('<exit>').
+  The fallthrough verdict is now labelled 'gold-error' instead of echoing the parent status. All four
+  sets rescored offline (replayed tests, no model call), rows that changed:
+      compile-retry composite  docker/compose  error -> FALSE-ALARM
+      D2                       sqlx            error -> USEFUL
+      D1                       sqlx, logrus    red   -> FALSE-ALARM ;  act  error -> FALSE-ALARM
+      first draw               none
+  The isolation result's single moved row ("sqlx: FALSE-ALARM -> error") was this defect. It was a
+  false alarm the instrument had stopped being able to see.
+
+(E) PREDICTIONS -> OUTCOMES (as registered; instrument of the prereg, then the repaired one).
+  P1 D2 no-TestXxx <= 3 of 51                 0.75  HIT   (0)
+  P2 D2 USEFUL > first draw                   0.55  HIT   (3 > 2 ; repaired 4 > 2)
+  P3 D1 USEFUL > 5                            0.50  HIT   (7)
+  P4 D1 USEFUL >= 8                           0.20  MISS  (7)
+  P5 D1 FALSE-ALARM < 19                      0.40  HIT   (15 ; repaired 18 < 20)
+  P6 D1 - D2 USEFUL >= 2                      0.55  HIT   (4 ; repaired 3)
+  P7 Router STRICT > 18                       0.20  MISS  (18)
+  5 of 7, and the registered mechanism held: D2 moved on form, D1 moved less, and judgement did not move.
+  This is the first time the mechanism, the direction AND most of the magnitudes held in one arm.
+
+FINDINGS.
+  1. A system prompt defined next to a call that cannot see it is a silent-wrong-input failure, the
+     same family as the mlx_lm.server adapter bug of 2026-07-24: every arm looked served. The check
+     that would have caught it on day one is the one used today: patch the transport and read what
+     was sent.
+  2. The writer's gap is judgement. Four independent routes to form have now been measured (form-retry,
+     exemplar, compile-retry, the right prompt) and none moved USEFUL past 7 of 35. The false-alarm
+     class (18) is the largest and is invisible to every run-time signal.
+  3. The training arm's baseline is D1: 7/35 USEFUL, 18 false alarms, 25 kept. It is the first writer
+     number in this line measured with the prompt that was registered.
+  4. The decledit loop carried the same contradiction ("every file in full" vs "only the declarations").
+     Its numbers (15/51, 17/51 with the gate) are what that harness did and are not claimed as the
+     registered form. A loop redraw is its own prereg.
+
+NEXT: the training arm (reward = red at the parent AND green on the gold, 149 reachable train tasks,
+measured against 35 on eval, baseline D1), prereg'd. Then the loop redraw.
+
+— Vefa, 2026-09-23

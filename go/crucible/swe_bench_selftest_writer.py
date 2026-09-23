@@ -241,9 +241,16 @@ def run_selftest(t, files, test_src, cache, env, workroot, keep_pkg_tests=False)
             return "green", set(), out
         if any(SELFTEST_NAME in l for l in out.splitlines() if re.search(r"\.go:\d+:\d+:", l)):
             return "nocompile", set(), out
-        fails = set(L.FAIL_RE.findall(out)) & names
+        # Unanchored, subtests mapped to their top-level test (2026-09-23). The anchored L.FAIL_RE missed
+        # sqlx's "--- FAIL:" because a log line without a newline was glued in front of it, and scored a
+        # red self-test as 'error'.
+        fails = {m.split("/")[0] for m in re.findall(r"--- FAIL: (\S+)", out)} & names
         if fails or "panic" in out or "timed out" in out:
             return "red", fails or {"<panic/timeout>"}, out
+        if keep_pkg_tests and names and "[build failed]" not in out and "[setup failed]" not in out:
+            # -run admits only the self-test's own names, so a binary that built and exited non-zero with no
+            # FAIL line was stopped by the self-test (logrus: a test that reaches logger.Fatal -> os.Exit(1))
+            return "red", {"<exit>"}, out
         return "error", set(), out  # built and ran, failed for a reason outside the self-test's own names
     finally:
         wt.close()
@@ -420,7 +427,8 @@ def main():
                    "USEFUL" if row["kept"] and row["gold"] == "green" else
                    "FALSE-ALARM" if row["kept"] and row["gold"] in ("red", "nocompile") else
                    "toothless" if row["parent"] == "green" else
-                   "nocompile" if row["parent"] == "nocompile" else row["parent"] or "?")
+                   "nocompile" if row["parent"] == "nocompile" else
+                   "gold-error" if row["kept"] else row["parent"] or "?")  # kept, but the gold run broke elsewhere
         if not has_tests:
             row["kept"] = False
         row["verdict"] = verdict

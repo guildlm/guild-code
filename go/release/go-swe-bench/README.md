@@ -86,6 +86,8 @@ repos.swe_v0.jsonl --depth 400` in guild-code, then `swe_bench_eval.py --load <g
 | **router** STRICT, same files, compile-retry gate (25 tests) | 18/51 | — | — | unchanged. A compile error is two signals: a type error is information, a name error is the model's ignorance of the package handed back to it |
 | **the commit's own test** through the self-test harness (no model; the instrument's ceiling) | — | — | — | old isolation (delete every `_test.go` in the package): useful **31**, nocompile 16 — it deleted the package's test fixtures and rejected the correct answer on 16 tasks. Repaired (keep the package's tests, remove only a file that would redeclare a self-test name): useful **35**, kept 38, nocompile 10 |
 | 30B compile-retry writer, **rescored under the repaired isolation** (same tests, no model call) | — | — | — | useful 5 → 5, false alarms 20 → 19, kept 25 → 24: one row moved. The harness was wrong and the writer still does not use the fixtures it was denied |
+| 30B writer, **its own system prompt** (until 2026-09-23 the writer's calls sent the file-level FIX prompt as the system turn; the user turn asked for a test), bare config | — | — | — | useful 2 → **4**, no-test 16 → 0, nocompile 11 → 22: the contradiction cost FORM, and form buys almost nothing |
+| same, full config (neighbouring test + form retry + compile retry) | — | — | — | useful 5 → **7**, false alarms 20 → 18, kept 25. The writer's gap is judgement: four routes to form, none past 7 of 35. Router STRICT 18 (unchanged) |
 
 **Denominator.** 9 tasks (colima, fx, asdf, caddy, gum, gitleaks, beszel, rqlite, vegeta) have a gold test that
 compiles only against the fix: it names a symbol the fix introduces, so no test that is red at the parent can
