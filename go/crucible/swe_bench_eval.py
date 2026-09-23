@@ -84,7 +84,8 @@ def extract_files(out, wanted):
 
 
 def sh(args, cwd, env=None, timeout=900):
-    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=timeout, env=env)
+    # errors="replace": a test binary may print non-UTF-8 bytes (a train task did, 2026-09-23, and killed the run)
+    p = subprocess.run(args, cwd=cwd, capture_output=True, text=True, errors="replace", timeout=timeout, env=env)
     return p.returncode, p.stdout + p.stderr
 
 
