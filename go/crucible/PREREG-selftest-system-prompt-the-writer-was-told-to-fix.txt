@@ -1,0 +1,59 @@
+PREREG (2026-09-23) — go_swe_bench v0: the SYSTEM-PROMPT repair.
+"The writer was told to fix the bug, in the one channel it was never shown"
+=========================================================================================
+Written and committed BEFORE either redraw below. Author: Vefa.
+
+THE DEFECT (found while preparing the training arm, not looked for).
+  swe_bench_eval.ask() builds the request with the module-global SYSTEM. The self-test writer and the
+  decledit loop import swe_bench_eval as `h` and call h.ask(); each defines its own SYSTEM, which was
+  therefore never sent. What the model received, in every draw since ff5800d (2026-09-20):
+    system: "...fixing a bug in a real repository... Return EVERY given file in full, each in its own
+             ```go block whose first line is // file: <path>... Change only what the fix needs."
+    user  (writer): "...Write the test file for package X. Its tests must fail on the code above..."
+    user  (loop):   "...Return only the declarations you change or add."
+  Evidence already in the archive: in the first writer draw, 16/51 outputs contain no TestXxx, and all
+  16 carry a `// file:` header naming a NON-test file -- the model obeyed the system turn and returned
+  the fixed source. In the exemplar draw, 0/51 do. The form-retry arm's "16/16 converted in one turn"
+  was a user turn out-shouting a system turn.
+  Verified at the network layer (urlopen patched): before the fix, writer and loop sent the eval
+  prompt; after, each sends its own, and swe_bench_eval sends its own unchanged.
+
+AFFECTED: every self-test writer draw (selftest arm, form-retry, exemplar, compile-retry, and the
+  isolation rescore, which replays their tests) and every decledit loop draw (algorithm arm, self-test
+  loop, 30B and 7B). NOT affected: swe_bench_eval.py file-level baselines (11/51, 9/51), the router
+  line of 2026-09-19 (other scripts), the gold probes (--model hidden, no model call).
+  The recorded numbers stay true as "what this harness did". None of them measured the registered
+  prompt.
+
+THE FIX: ask(..., system=None); writer and loop pass system=SYSTEM on all 4 call sites. Nothing else
+  in either script changes.
+
+REDRAWS (30B = qwen3-coder:30b-32k, temp 0, seed 0, 51 eval tasks, --keep-package-tests, all repairs
+  as committed including today's module-aware goimports), run in this order:
+  D1 FULL:  defaults (exemplar on, form-retry 1) + --compile-retry.
+            Compare to: the compile-retry composite rescored under keep-tests
+            USEFUL 5 · FALSE-ALARM 19 · toothless 8 · nocompile 17 · KEPT 24   (denominator 35).
+  D2 BARE:  --no-exemplar --form-retry 0 (no compile retry).
+            Compare to: the first writer draw (ff5800d config), rescored under keep-tests with
+            --rescore (no model call) BEFORE D2 is scored; that rescore is part of this prereg.
+  Router (STRICT, offline, same preferred/alternate loop files as every prior router row) is re-run on
+  the D1 gate. The loop files themselves were drawn under the defect; a loop redraw is a SEPARATE
+  prereg and is not claimed here.
+
+PREDICTIONS (probabilities mine, now):
+  P1  D2: outputs with no TestXxx <= 3 of 51 (was 16)                      0.75
+  P2  D2: USEFUL > rescored first draw                                     0.55
+  P3  D1: USEFUL > 5                                                        0.50
+  P4  D1: USEFUL >= 8                                                       0.20
+  P5  D1: FALSE-ALARM < 19                                                  0.40
+  P6  D1 - D2 USEFUL >= 2  (the exemplar/retry gain survives the repair)    0.55
+  P7  Router STRICT on the D1 gate > 18                                     0.20
+  Mechanism I am betting on: the contradiction cost FORM (answers that are not tests), not JUDGEMENT
+  (tests that assert the wrong thing). If so, D2 moves much more than D1, because D1's exemplar and
+  retries had already been paying for form. If D1 moves as much as D2, the contradiction was costing
+  judgement too and I have been measuring a handicapped writer for three arms.
+
+WHAT WOULD FALSIFY THE REPAIR'S IMPORTANCE: D1 and D2 both within +-1 USEFUL of their comparison rows.
+  Then the finding is "the writer ignored its system turn anyway", recorded as such.
+
+TRAINING ARM: on hold until D1 is scored. Its baseline must be a writer that received its own prompt.

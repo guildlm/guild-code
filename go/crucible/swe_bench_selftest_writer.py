@@ -336,7 +336,7 @@ def main():
                 ex = exemplar_for(t, a.cache) if a.exemplar else None
                 if a.exemplar:
                     print(f"{tid:40} exemplar: {ex[0] if ex else 'NONE in this package'}", flush=True)
-                out = h.ask(a.base_url, a.model, build_prompt(t, ex), a.temp, a.max_tokens, a.seed)
+                out = h.ask(a.base_url, a.model, build_prompt(t, ex), a.temp, a.max_tokens, a.seed, system=SYSTEM)
             except Exception as e:  # noqa: BLE001
                 out = f"ERR {type(e).__name__}"
         raw = extract_test(out)
@@ -351,7 +351,7 @@ def main():
             print(f"{tid:40} form failure (no TestXxx) -> re-asking {tries}/{a.form_retry}", flush=True)
             try:
                 out = h.ask(a.base_url, a.model, build_prompt(t, ex) + "\n\n" + FORM_RETRY,
-                            a.temp, a.max_tokens, a.seed)
+                            a.temp, a.max_tokens, a.seed, system=SYSTEM)
             except Exception as e:  # noqa: BLE001
                 out = f"ERR {type(e).__name__}"
             raw = extract_test(out)
@@ -386,7 +386,7 @@ def main():
                 print(f"{tid:40} does not compile -> re-asking ({row['compile_retry']})", flush=True)
                 try:
                     out = h.ask(a.base_url, a.model, build_prompt(t, ex) + "\n\n" + extra, a.temp,
-                                8000 if cut else a.max_tokens, a.seed)
+                                8000 if cut else a.max_tokens, a.seed, system=SYSTEM)
                 except Exception as e:  # noqa: BLE001
                     out = f"ERR {type(e).__name__}"
                 raw2 = extract_test(out)

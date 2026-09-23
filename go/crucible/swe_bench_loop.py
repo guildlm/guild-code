@@ -214,7 +214,7 @@ def main():
                 out = "\n".join(f"// file: {p}\n```go\n{gold_fragment(t['before'][p], t['after'][p], tmp)}\n```" for p in t["src_files"])
             else:
                 try:
-                    out = h.ask(a.base_url, a.model, build_prompt(t, files, feedback), a.temp, a.max_tokens, a.seed)
+                    out = h.ask(a.base_url, a.model, build_prompt(t, files, feedback), a.temp, a.max_tokens, a.seed, system=SYSTEM)
                 except Exception as e:  # noqa: BLE001
                     out = f"ERR {type(e).__name__}"
             frags, untagged, foreign = extract_fragments(out, wanted)

@@ -44,9 +44,15 @@ def truncated(out):
 
 
 
-def ask(base_url, model, prompt, temp, max_tokens, seed):
+def ask(base_url, model, prompt, temp, max_tokens, seed, system=None):
+    # system=None -> this module's SYSTEM. Callers that import this module (the loop, the self-test writer)
+    # MUST pass their own: until 2026-09-23 they did not, and `SYSTEM` here resolved to THIS module's
+    # whole-file fix prompt, so the writer was told "return every file fixed" while its user turn said
+    # "write a test", and the decledit loop was told "return every file in full" while its user turn said
+    # "return only the declarations". Every draw from ff5800d onwards carried the contradiction.
     body = json.dumps({"model": model, "temperature": temp, "max_tokens": max_tokens, "seed": seed,
-                       "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}]}).encode()
+                       "messages": [{"role": "system", "content": SYSTEM if system is None else system},
+                                    {"role": "user", "content": prompt}]}).encode()
     req = urllib.request.Request(base_url.rstrip("/") + "/chat/completions", data=body,
                                  headers={"Content-Type": "application/json", "Authorization": "Bearer ollama"})
     with urllib.request.urlopen(req, timeout=900) as r:
